@@ -1,25 +1,19 @@
-# Editorial provenance
+# Editorial provenance — 2026-11-01
 
-User-supplied Markdown draft files, received 2026-11-01:
+Original user-supplied Markdown drafts are the editorial basis for five learning articles:
 
-- `学習ハブ_テーマ1_課題の切り取り.md`
-- `学習ハブ_テーマ2_商品化とカリキュラム設計.md`
-- `学習ハブ_テーマ3_オファーと価格.md`
-- `学習ハブ_テーマ4_販売ページ.md`
-- `学習ハブ_テーマ6_分析と改善.md`
+| Lesson | Original user file | Publish-safe source |
+| --- | --- | --- |
+| 01 課題の切り取り | 学習ハブ_テーマ1_課題の切り取り.md | content/lessons/problem.md |
+| 02 商品化・カリキュラム設計 | 学習ハブ_テーマ2_商品化とカリキュラム設計.md | content/lessons/design.md |
+| 03 オファーと価格 | 学習ハブ_テーマ3_オファーと価格.md | content/lessons/offer.md |
+| 04 販売ページ | 学習ハブ_テーマ4_販売ページ.md | content/lessons/sales.md |
+| 06 分析と改善 | 学習ハブ_テーマ6_分析と改善.md | content/lessons/improve.md |
 
-The original files are **not** published or committed with the demo. Public-facing preview articles paraphrase the core teaching into generic examples and concise learning steps. Coffee-exam product-specific earnings projections, customer data, and unverified market numbers are intentionally excluded.
+The original private files were NOT committed to this public repository. Their core structure (chapters 1-5, detailed technical sections, mistakes, summaries) was preserved in publish-facing adapted Markdown. The original "珈琲読書でどう使うか" sections were turned into openly framed *design examples* because actual published inventories, current exam details, sales outcomes and pricing require separate verification. Absolute claims like "every successful product" and the inference that search autocomplete alone proves purchase demand were narrowed. The articles are not original source document replicas and should not be represented as such.
 
-Theme 5 `集客` is **not supplied**; current page is a clearly labeled placeholder derived from its intended relationship to themes 4 and 6.
+Theme 05 was not in the original user attachments. It remains a separately authored draft in the build.py lesson data, supported by the linked Google Search documentation. Do not misattribute it to the user.
 
-Before indexing: owner checks voice, firsthand experience claims, legal/regulatory details where material, product terms, and current platform capabilities. Establish citation/source records when adding externally researched factual claims.
+The source-of-truth for public article text is content/lessons/*.md, rendered via `python build.py` (mistune is NOT used; install `markdown-it-py` for Markdown rendering). Generated learn/*/index.html must never be manually treated as the only source.
 
-## Added 2026-11-01
-
-Theme 5（集客／検索・SNS）is independently authored for Knowledge Product Studio. No user-supplied Theme 5 source exists. The article uses original conceptual examples and this primary reference for people-first content and SEO:
-
-- [Google Search Central: Creating Helpful, Reliable, People-First Content](https://developers.google.com/search/docs/fundamentals/creating-helpful-content?hl=ja)
-- [Google Search Central: Build and Submit a Sitemap](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)
-- [Google Search Central: `noindex` / crawlability](https://developers.google.com/search/docs/crawling-indexing/block-indexing?hl=ja)
-
-No statistics on traffic, revenue, sales conversion or note platform capability have been invented. Lesson examples are hypothetical; provided private drafts are not committed verbatim.
+Original user material may contain private roadmaps. Do not upload it verbatim to public GitHub. Verify prices, exam criteria and third-party facts with primary sources before removing noindex.

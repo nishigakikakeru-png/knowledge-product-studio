@@ -44,6 +44,23 @@ def static():
     assert 'noindex' in json.dumps(conf)
     for slug in LESSONS:
         assert f'lesson={slug}' in (ROOT/'learn'/slug/'index.html').read_text()
+    # User-supplied original five lessons must remain full-length editorial articles.
+    from html.parser import HTMLParser
+    class LessonContentParser(HTMLParser):
+        def __init__(self): super().__init__();self.h2=0;self.h3=0;self.toc=0;self.scroll=0
+        def handle_starttag(self,tag,attrs):
+            a=dict(attrs)
+            if tag=='h2':self.h2+=1
+            if tag=='h3':self.h3+=1
+            if tag=='a' and (a.get('href') or '').startswith('#chapter-'):self.toc+=1
+            if tag=='div' and 'table-scroll' in a.get('class','').split():self.scroll+=1
+    for slug in ('problem','design','offer','sales','improve'):
+        article= (ROOT/'learn'/slug/'index.html').read_text('utf-8')
+        parsed=LessonContentParser();parsed.feed(article)
+        assert len(article)>6500,(slug,'summary page rather than full article')
+        assert parsed.h2>=6 and parsed.h3>=4 and parsed.toc==5,(slug,parsed.h2,parsed.h3,parsed.toc)
+        assert '公開前に本人が' not in article,(slug,'editorial note leaked into reader view')
+        if slug in ('sales','improve'):assert parsed.scroll>=1,(slug,'table overflow')
     print(f'Static checks OK: {len(PAGES)} HTML pages, all internal links, canonical, sitemap, robots, article/studio links')
 
 class Handler(http.server.SimpleHTTPRequestHandler):
