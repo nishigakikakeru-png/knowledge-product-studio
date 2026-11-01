@@ -21,5 +21,40 @@ $('exportBtn')?.addEventListener('click',()=>{clearTimeout(saveTimer);save();con
 $('importInput')?.addEventListener('change',async ev=>{const file=ev.target.files?.[0];ev.target.value='';if(!file)return;if(file.size>200000){status('200KB以下のJSONのみ読み込めます');return;}try{let parsed=JSON.parse(await file.text());if(parsed.schema!=='knowledge-product-studio/product-v1'||!parsed.product||typeof parsed.product!=='object'||Array.isArray(parsed.product))throw new Error('schema');let data={};for(const f of fields){let x=parsed.product[f];if(x!==undefined&&typeof x!=='string')throw new Error(f);data[f]=typeof x==='string'?x.slice(0,20000):DEFAULT[f];}if(!confirm('現在の入力を読み込んだデータに置き換えますか？'))return;setState(data);save();}catch(e){status('読み込めないJSON形式です');}});
 $('clearBtn')?.addEventListener('click',()=>{if(!confirm('この端末の入力内容を初期化しますか？先にJSONを書き出してください。'))return;setState(Object.fromEntries(fields.map(f=>[f,''])));save();});
 $('resetSample')?.addEventListener('click',()=>{if(!confirm('5つの項目を入力例に戻しますか？その他の商品設計項目は保持します。'))return;for(const f of ['experience','audience','problem','outcome','productName'])state[f]=DEFAULT[f];render();scheduleSave();});
+
+// 学習記事から来た人に、対応する既存入力欄を案内する。保存形式は変更しない。
+const lessonTargets={
+  problem:{name:'課題の切り取り',tab:'map',field:'audience',hint:'まず想定する読者を書き、その人の困りごとと解決後の変化を続けて記入します。'},
+  design:{name:'商品化とカリキュラム設計',tab:'sheet',field:'outline',hint:'使い終わった人ができることから逆算し、章立てと確認課題を目次欄に整理します。'},
+  offer:{name:'オファーと価格',tab:'sheet',field:'value',hint:'商品の内容と比較できる価値を先に記入し、その根拠がある価格案を考えます。'},
+  sales:{name:'販売ページ',tab:'sheet',field:'evidence',hint:'目次・サンプル・実体験など、買い手に見せられる根拠を記録します。'},
+  reach:{name:'集客（検索・SNS）',tab:'sheet',field:'channel',hint:'読者の質問に答える無料記事と、商品を届ける場所のつながりを記入します。'},
+  improve:{name:'分析と改善',tab:'review',field:null,hint:'完成チェックで未確定の項目を確認し、次に見直す一か所を選びます。'}
+};
+const lessonId=new URLSearchParams(location.search).get('lesson');
+const selectedLesson=Object.prototype.hasOwnProperty.call(lessonTargets,lessonId)?lessonTargets[lessonId]:null;
+if(selectedLesson){
+  const guide=$('lessonGuide');
+  const target=selectedLesson.field?byName(selectedLesson.field):$('reviewList');
+  const tab=document.querySelector(`.tab[data-panel="${selectedLesson.tab}"]`);
+  if(guide && tab && target){
+    const caption=document.createElement('div');caption.className='eyebrow';caption.textContent='学習記事からの実践';
+    const title=document.createElement('strong');title.textContent=selectedLesson.name;
+    const description=document.createElement('p');description.textContent=selectedLesson.hint;
+    const row=document.createElement('div');row.className='lesson-guide-actions';
+    const go=document.createElement('button');go.type='button';go.className='button primary';go.textContent='該当項目を開く →';
+    const back=document.createElement('a');back.href='/learn/'+lessonId+'/';back.className='button secondary';back.textContent='記事に戻る';
+    row.append(go,back);guide.append(caption,title,description,row);guide.hidden=false;
+    function openField(){
+      tab.click();
+      if(selectedLesson.field){const label=target.closest('label');if(label)label.classList.add('guided-target');}
+      target.scrollIntoView({behavior:'smooth',block:'center'});
+      if(selectedLesson.field)target.focus({preventScroll:true});
+    }
+    go.addEventListener('click',openField);
+    tab.click();
+  }
+}
+
 window.addEventListener('pagehide',()=>{if(dirty){clearTimeout(saveTimer);save();}});
 })();
