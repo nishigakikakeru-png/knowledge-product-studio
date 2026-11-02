@@ -36,3 +36,9 @@ Build a Japanese learning + product planning website for people who do not know 
 ## Deployment
 
 Static HTML/CSS/JS; Vercel framework Other. No npm dependencies. Do not deploy to COS or CMS Vercel projects. New project must have its own GitHub repository and Vercel project. Prefer staged preview review before production. Never claim deployment success without verifying the returned URL and READY state.
+
+## Diagram Editor (2026-11-03)
+- Route `/diagram/` is a static local-first visual editor; its draft key is `kps-diagram-draft-v1`, separate from existing user workspace keys. Do not commit user project JSON to GitHub.
+- Checkout, Stripe webhook and lifetime entitlement database migration are not active yet. Display purchase as '準備中' until verified backend authorization and test checkout complete. Never grant paid features using a client-controlled email field or localStorage boolean.
+- The UI can query an authenticated owner role via Supabase; live owner availability requires end-to-end browser login validation. Client-side PNG gating is not strong DRM and cannot secure an active paid service alone.
+- KPS only embeds a link to Piggy Mix; no cross-origin access to its user palettes is implemented. External AI integration uses explicit JSON exchange, without automatic API requests.
