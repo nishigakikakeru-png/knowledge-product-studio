@@ -10,7 +10,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 LESSONS=('problem','design','offer','sales','reach','improve')
-PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/about/']
+PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/about/']
 ORIGIN='https://knowledge-product-studio.vercel.app'
 class AuditParser(HTMLParser):
     def __init__(self): super().__init__();self.links=[];self.canon=[];self.robots=[];self.h1=0;self.description=[]
@@ -42,6 +42,8 @@ def static():
     assert 'Allow: /' in (ROOT/'robots.txt').read_text()
     conf=json.loads((ROOT/'vercel.json').read_text())
     assert 'noindex' in json.dumps(conf)
+    assert "const KEY='kps-thought-v1'" in (ROOT/'assets'/'thinking.js').read_text()
+    assert "const KEY='kps-product-v1'" in (ROOT/'assets'/'studio.js').read_text()
     for slug in LESSONS:
         assert f'lesson={slug}' in (ROOT/'learn'/slug/'index.html').read_text()
     # User-supplied original five lessons must remain full-length editorial articles.
@@ -105,6 +107,17 @@ def browser():
                     page.goto(base+'/studio/?lesson=problem')
                     assert page.locator('[name="audience"]').input_value()=='保存済みの読者'
                     assert page.locator('[name="problem"]').input_value()=='保存済みの課題'
+                    # Thought notes must persist without changing product-board storage.
+                    page.goto(base+'/thinking/')
+                    page.locator('#thinkTitle').fill('なぜ仕組みを作るのか')
+                    page.locator('[data-thought="principle"]').fill('選べる範囲を増やしたい')
+                    page.locator('#saveSnapshot').click()
+                    page.wait_for_timeout(550)
+                    page.reload()
+                    assert page.locator('#thinkTitle').input_value()=='なぜ仕組みを作るのか'
+                    assert page.locator('.snapshot').count()==1
+                    page.goto(base+'/studio/')
+                    assert page.locator('[name="audience"]').input_value()=='保存済みの読者'
                     # export still contains original schema and saved data
                     with page.expect_download() as d:page.locator('#exportBtn').click()
                     dl=d.value
@@ -113,7 +126,7 @@ def browser():
                     assert data['schema']=='knowledge-product-studio/product-v1'
                     assert data['product']['audience']=='保存済みの読者'
                     # responsive horizontal overflow should not make entire site scroll sideways
-                    for route in ['/', '/learn/reach/','/studio/?lesson=offer']:
+                    for route in ['/', '/learn/reach/','/studio/?lesson=offer','/thinking/']:
                         page.goto(base+route)
                         assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 2'),(route,width,page.evaluate('document.documentElement.scrollWidth'))
                     assert not errs,(width,errs)
