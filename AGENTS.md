@@ -9,7 +9,8 @@ Build a Japanese learning + product planning website for people who do not know 
 - This is the **public-facing** site, separate from `nishigakikakeru-png/content-operations-studio` (COS) and `character-motion-studio2`.
 - COS contains private editorial Brain, Knowledge and plans. **Never copy private COS runtime data into this public repository.** Borrow reviewed principles and purpose-built components only.
 - Do not expose GitHub/Vercel/ChatGPT operational complexity to customers.
-- Customer-side scope: learning pages, product concept map, product outline, pricing/offer, selling page, improvement workflow.
+- Customer-side scope: learning pages, optional local-only thinking workspace, product concept map, product outline, pricing/offer, selling page, improvement workflow.
+- Thinking workspace is intentionally independent of product editor: localStorage key `kps-thought-v1` and separate JSON schema; preserve `kps-product-v1` exactly. No autosending personal notes to COS, GitHub or publishing channels.
 - Owner-side scope: ChatGPT-assisted editorial research, source verification, internal links, SEO audits, GitHub commits and Vercel deploys.
 - Muse/AI and note publishing integrations are future interfaces, **not v1 features**.
 - User data must not be checked into GitHub or drive redeploys. The initial product form uses device-local localStorage. Mark its limits plainly; later use isolated per-user authenticated storage.
