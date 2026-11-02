@@ -10,7 +10,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 LESSONS=('problem','design','offer','sales','reach','improve')
-PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/about/']
+PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/diagram/','/about/']
 ORIGIN='https://knowledge-product-studio.vercel.app'
 class AuditParser(HTMLParser):
     def __init__(self): super().__init__();self.links=[];self.canon=[];self.robots=[];self.h1=0;self.description=[]
