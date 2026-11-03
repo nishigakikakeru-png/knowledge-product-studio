@@ -1,4 +1,4 @@
-<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>図解エディター｜商材設計ラボ</title><meta name="description" content="noteやSNS向けの図解をスマホ・PCで直接編集。テキスト・ボックス・矢印を並べ、JSONを保存できます。"><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/assets/site.css?v=3"><link rel="stylesheet" href="/assets/diagram.css?v=2"><link rel="canonical" href="https://knowledge-product-studio.vercel.app/diagram/"></head><body>
+<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>図解エディター｜商材設計ラボ</title><meta name="description" content="noteやSNS向けの図解をスマホ・PCで直接編集。テキスト・ボックス・矢印を並べ、JSONを保存できます。"><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/assets/site.css?v=3"><link rel="stylesheet" href="/assets/diagram.css?v=3"><link rel="canonical" href="https://knowledge-product-studio.vercel.app/diagram/"></head><body>
 <header class="site-header"><div class="nav-wrap"><a class="brand" href="/"><span class="brand-mark">k.</span><span>商材設計ラボ<small>Knowledge Product Studio</small></span></a><nav aria-label="メインナビ"><a href="/learn/">学ぶ</a><a href="/thinking/">考える</a><a href="/studio/">商品設計</a><a class="active" href="/diagram/" aria-current="page">図解</a><a href="/about/">このサイトについて</a></nav></div></header>
 <main class="diagram-app">
 <div class="diagram-title"><div><div class="eyebrow">VISUAL NOTE EDITOR / BETA</div><h1>図解エディター</h1><p>コードを書くより、触って整える。noteの図解や文字の整理を想定した編集画面です。</p></div><div class="diagram-head-actions"><span id="saveStatus" role="status" aria-live="polite">この端末に保存</span><button id="saveJsonTop" type="button" class="button secondary">JSON保存（無料）</button><button id="accountBtn" type="button" class="button secondary">メールログイン</button><button id="exportPng" type="button" class="button primary">PNGを書き出す</button></div></div>
@@ -17,5 +17,32 @@
 <div class="diagram-notice">編集は無料です。PNG書き出し（買い切り ¥2,980）と保存色のアカウント保存は購入者向け機能です。<strong>現在は決済導入前のベータ版</strong>のため、新規購入はできません。7日以上経過した下書きは復元時に注意表示します。自動削除はしません。不要になったデータはブラウザ側で削除できます。大切な内容は無料のJSON保存で保管してください。画像・図解データはサーバーへアップロードしません。</div>
 </main>
 <div id="licenseDialog" class="license-overlay" hidden><div class="license-card" role="dialog" aria-modal="true" aria-labelledby="licenseTitle"><button id="closeLicense" class="license-close" aria-label="閉じる">×</button><h2 id="licenseTitle">図解エディター｜書き出し</h2><p>編集・JSON保存は無料です。PNG書き出しと色の保存には買い切りライセンスが必要です。</p><div class="license-price">¥2,980 <small>一度購入したアカウントで継続利用</small></div><p id="licenseMessage">決済準備中です。現在、実際の支払いは発生しません。</p><button type="button" class="button secondary" id="loginFromDialog">ログイン・権限を確認</button><button type="button" class="button primary" disabled>購入（準備中）</button></div></div>
-<div id="authDialog" class="license-overlay" hidden><div class="license-card" role="dialog" aria-modal="true" aria-labelledby="authTitle"><button id="closeAuth" class="license-close" aria-label="閉じる">×</button><h2 id="authTitle">メールでログイン</h2><p>Character Motion Studioと同じユーザー認証を利用します。メール内のリンクからKPSへ戻る方式です。既存のオーナーアカウントでは無料権限を確認します。</p><label>メールアドレス <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email"></label><button id="sendLink" type="button" class="button primary">KPSへのログインメールを送る</button><button id="signOut" class="button secondary">ログアウト</button><p id="authMessage" role="status"></p></div></div>
-<script src="/assets/diagram.js?v=3" defer></script></body></html>
+<div id="authDialog" class="license-overlay" hidden>
+<div class="license-card kps-auth-dialog" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+<button id="closeAuth" type="button" class="license-close" aria-label="ログイン画面を閉じる">×</button>
+<div class="eyebrow">KPS ACCOUNT</div>
+<h2 id="authTitle">KPSにログイン</h2>
+<p>メールアドレスに届く6桁の認証コードを、この画面に入力します。他のサイトへ移動する必要はありません。</p>
+<section id="authSignedIn" hidden>
+<p class="auth-success" id="authSessionEmail"></p>
+<p>同じメールアドレスを使用しても、KPSのログイン状態と利用権限は独立して管理します。</p>
+</section>
+<form id="authRequestForm" novalidate>
+<label for="authEmail">メールアドレス
+<input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" inputmode="email" required maxlength="254"></label>
+<button id="sendLink" type="submit" class="button primary">6桁コードをメールで受け取る</button>
+</form>
+<form id="authVerifyForm" novalidate hidden>
+<p class="auth-recipient" id="otpRecipient"></p>
+<label for="authCode">メールに届いた6桁の認証コード
+<input type="text" id="authCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required></label>
+<button id="verifyCode" type="submit" class="button primary">コードを確認してログイン</button>
+<div class="auth-inline-actions"><button id="resendOtp" type="button" class="button secondary" disabled>コード再送信</button><button id="changeEmail" type="button" class="button secondary">メールアドレス変更</button></div>
+</form>
+<button id="signOut" type="button" class="button secondary" hidden>KPSからログアウト</button>
+<p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
+<details class="auth-help"><summary>認証コードがメールに書かれていない場合</summary>
+<p>メールに認証リンクしかない場合は、運営側のメールテンプレートがコード表示に未対応です。リンクを押して別サイトへ移動せず、運営者に設定状況をご確認ください。</p>
+</details>
+</div></div>
+<script src="/assets/diagram.js?v=4" defer></script></body></html>
