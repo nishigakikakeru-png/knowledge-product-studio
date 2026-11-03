@@ -42,6 +42,16 @@ def static():
     assert 'Allow: /' in (ROOT/'robots.txt').read_text()
     conf=json.loads((ROOT/'vercel.json').read_text())
     assert 'noindex' in json.dumps(conf)
+    # Diagram editing and JSON export must work without authentication.
+    diagram_js = (ROOT/'assets'/'diagram.js').read_text('utf-8')
+    assert "const URL=" not in diagram_js, 'URL shadowing breaks URL.createObjectURL download'
+    assert 'URL.createObjectURL' in diagram_js
+    assert "const SUPABASE_URL=" in diagram_js
+    assert 'saveJsonFile' in diagram_js
+    assert 'AUTH_RETURN' in diagram_js
+    sample = json.loads((ROOT/'diagram'/'example.json').read_text('utf-8'))
+    assert sample['schema']=='kps-diagram-v1' and len(sample['elements'])>=3
+    assert 'v=3' in (ROOT/'diagram'/'index.html').read_text('utf-8')
     assert "const KEY='kps-thought-v1'" in (ROOT/'assets'/'thinking.js').read_text()
     assert "const KEY='kps-product-v1'" in (ROOT/'assets'/'studio.js').read_text()
     for slug in LESSONS:
