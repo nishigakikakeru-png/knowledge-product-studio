@@ -150,6 +150,51 @@ def browser():
                         page.goto(base+route)
                         assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 2'),(route,width,page.evaluate('document.documentElement.scrollWidth'))
                     assert not errs,(width,errs)
+                    # Mock only the network Auth SDK: never send a real email in tests.
+                    auth_ctx=browser.new_context(viewport={'width':width,'height':850},accept_downloads=True)
+                    auth_ctx.add_init_script("""
+                        window.__kpsMockCalls=[];
+                        window.supabase={createClient:function(url,key,options){
+                          window.__kpsMockCalls.push({op:'init',storageKey:options.auth.storageKey,detectSessionInUrl:options.auth.detectSessionInUrl});
+                          const listeners=[];
+                          const user={id:'00000000-0000-4000-8000-000000000001',email:'sample-owner@example.com'};
+                          const auth={
+                            getSession:async()=>({data:{session:null},error:null}),
+                            getUser:async()=>({data:{user},error:null}),
+                            onAuthStateChange:callback=>{listeners.push(callback);return{data:{subscription:{unsubscribe:()=>{}}}};},
+                            signInWithOtp:async args=>{window.__kpsMockCalls.push({op:'send',email:args.email,options:args.options});return{data:{session:null},error:null};},
+                            verifyOtp:async args=>{window.__kpsMockCalls.push({op:'verify',token:args.token,type:args.type});
+                              if(args.token!=='123456')return{error:{message:'Invalid code'},data:null};
+                              const session={user};listeners.forEach(cb=>cb('SIGNED_IN',session));
+                              return{data:{session,user},error:null};},
+                            signOut:async args=>{window.__kpsMockCalls.push({op:'signout',scope:args.scope});listeners.forEach(cb=>cb('SIGNED_OUT',null));return{error:null};}
+                          };
+                          return{auth,from:table=>({select(){return this},eq(){return this},maybeSingle:async()=>{
+                            return{data:table==='kps_diagram_entitlements'?{active:true}:null,error:null};}})};
+                        }};
+                    """)
+                    auth_page=auth_ctx.new_page()
+                    assert auth_page.goto(base+'/diagram/').status==200
+                    # Free JSON export must not require login or license.
+                    with auth_page.expect_download() as d:auth_page.locator('#saveJsonTop').click()
+                    assert d.value.suggested_filename.endswith('.json')
+                    auth_page.locator('#accountBtn').click()
+                    auth_page.locator('#authEmail').fill('sample-owner@example.com')
+                    auth_page.locator('#sendLink').click()
+                    auth_page.wait_for_selector('#authVerifyForm:not([hidden])')
+                    auth_page.locator('#authCode').fill('123456')
+                    auth_page.locator('#verifyCode').click()
+                    auth_page.wait_for_function("document.getElementById('accountBtn').textContent.includes('ライセンス有効')")
+                    assert auth_page.url.endswith('/diagram/')
+                    auth_page.locator('#accountBtn').click()
+                    auth_page.locator('#signOut').click()
+                    actions=auth_page.evaluate('window.__kpsMockCalls')
+                    assert actions[0]['storageKey']=='kps-diagram-auth'
+                    assert actions[0]['detectSessionInUrl'] is False
+                    assert any(x.get('op')=='send' and x['options'].get('shouldCreateUser') is True for x in actions)
+                    assert any(x.get('op')=='verify' and x['type']=='email' for x in actions)
+                    assert any(x.get('op')=='signout' and x['scope']=='local' for x in actions)
+                    auth_ctx.close()
                     ctx.close()
                 browser.close()
             print('Chromium smoke OK: mobile 390 and desktop 1280, route loading, links, lesson context, autosave and JSON export')
