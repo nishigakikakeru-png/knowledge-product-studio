@@ -49,9 +49,19 @@ def static():
     assert "const SUPABASE_URL=" in diagram_js
     assert 'saveJsonFile' in diagram_js
     assert 'AUTH_RETURN' in diagram_js
+    # Separate KPS OTP flow: same Supabase identity, independent session and logout.
+    assert "storageKey:'kps-diagram-auth'" in diagram_js
+    assert "detectSessionInUrl:false" in diagram_js
+    assert "shouldCreateUser:true" in diagram_js
+    assert "verifyOtp({email:otpEmail,token,type:'email'})" in diagram_js
+    assert "signOut({scope:'local'})" in diagram_js
+    assert "auth.signOut()" not in diagram_js
+    diagram_html=(ROOT/'diagram'/'index.html').read_text('utf-8')
+    assert 'id="authCode"' in diagram_html and 'id="authVerifyForm"' in diagram_html
+    assert 'id="authRequestForm"' in diagram_html
     sample = json.loads((ROOT/'diagram'/'example.json').read_text('utf-8'))
     assert sample['schema']=='kps-diagram-v1' and len(sample['elements'])>=3
-    assert 'v=3' in (ROOT/'diagram'/'index.html').read_text('utf-8')
+    assert 'v=4' in (ROOT/'diagram'/'index.html').read_text('utf-8')
     assert "const KEY='kps-thought-v1'" in (ROOT/'assets'/'thinking.js').read_text()
     assert "const KEY='kps-product-v1'" in (ROOT/'assets'/'studio.js').read_text()
     for slug in LESSONS:
