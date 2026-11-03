@@ -1,6 +1,6 @@
 (()=>{'use strict';
 const SCHEMA='kps-diagram-v1',KEY='kps-diagram-draft-v1', W=1100,H=660, MAX=100, COLORS=['#ffffff','#202a38','#dfeaf1','#e5c0a0','#8dbcc4','#f4deaf','#7291b5','#cee1cc'];
-const URL='https://kknhlihfrkyebebkockh.supabase.co', PUBLISHABLE='sb_publishable_zaCpsdP0HCh3C4vBmCBdeg_qnns3oar';
+const URL='https://kknhlihfrkyebebkockh.supabase.co', PUBLISHABLE='sb_publishable_zaCpsdP0HCh3C4vBmCBdeg_qnns3oar',AUTH_RETURN='https://knowledge-product-studio.vercel.app/diagram/';
 const $=id=>document.getElementById(id),stage=$('stage'),space=$('stageSpace'),viewport=$('viewport'),inspector=$('inspector');
 const fonts={sans:'"Noto Sans JP","Yu Gothic",sans-serif',serif:'"Noto Serif JP","Yu Mincho",serif',mono:'ui-monospace,monospace'};
 let db=null,user=null,licensed=false,selected=null,scale=1,drag=null,saveTimer=null,history=[],future=[];
@@ -73,7 +73,60 @@ const endDrag=()=>{if(drag){drag=null;schedule()}};
 stage.addEventListener('pointerup',endDrag);stage.addEventListener('pointercancel',endDrag);
 function download(content,name,mime){const b=new Blob([content],{type:mime});const url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
 const today=()=>new Date().toISOString().slice(0,10);
-$('saveJson').addEventListener('click',()=>download(JSON.stringify(scene,null,2),'KPS-図解-'+today()+'.json','application/json'));
+
+function jsonText(){return JSON.stringify(scene,null,2);}
+function showJsonText(){
+ const panel=$('codePanel');
+ panel.hidden=false;
+ $('jsonEditor').value=jsonText();
+ panel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function saveJsonFile(){
+ try{
+  download(jsonText(),'KPS-図解-'+today()+'.json','application/json;charset=utf-8');
+  setStatus('JSONのダウンロードを開始しました。保存されない場合は「スマホで共有」か「JSONコピー」を使ってください。');
+ }catch(e){
+  showJsonText();
+  setStatus('このブラウザではダウンロードできません。JSONをコピーして保存してください。');
+ }
+}
+$('saveJson').addEventListener('click',saveJsonFile);
+$('saveJsonTop')?.addEventListener('click',saveJsonFile);
+$('showJson').addEventListener('click',showJsonText);
+$('copyJson').addEventListener('click',async()=>{
+ try{
+  if(!navigator.clipboard?.writeText)throw Error('clipboard unavailable');
+  await navigator.clipboard.writeText(jsonText());
+  setStatus('JSONをコピーしました。メモアプリなどに貼り付けて保管できます。');
+ }catch(e){
+  showJsonText();
+  $('jsonEditor').focus();$('jsonEditor').select();
+  setStatus('JSONを表示しました。範囲選択してコピーしてください。');
+ }
+});
+$('shareJson').addEventListener('click',async()=>{
+ try{
+  const file=new File([jsonText()],'KPS-図解-'+today()+'.json',{type:'application/json'});
+  if(!navigator.canShare?.({files:[file]})||!navigator.share)throw Error('share unavailable');
+  await navigator.share({files:[file],title:'KPS 図解JSON'});
+  setStatus('共有先にJSONを渡しました。保存は共有先で確認してください。');
+ }catch(e){
+  if(e.name==='AbortError')return;
+  showJsonText();
+  setStatus('ファイル共有に対応していません。JSONコピーを利用してください。');
+ }
+});
+$('loadSample').addEventListener('click',async()=>{
+ try{
+  const response=await fetch('/diagram/example.json',{cache:'no-store'});
+  if(!response.ok)throw Error('HTTP '+response.status);
+  const content=await response.text();
+  if(!confirm('現在の図解をサンプルで置き換えますか？ 必要なら先にJSONを保存してください。'))return;
+  resetFrom(content);
+  setStatus('サンプル図解を読み込みました。編集・JSON保存を試せます。');
+ }catch(e){setStatus('サンプルを読み込めませんでした。ファイルを直接保存してJSON読込をお試しください。');}
+});
+
 $('openJson').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;if(file.size>600000)return alert('600KB以下のJSONを使ってください');if(!confirm('現在の図解を新しいファイルに置き換えますか？'))return;resetFrom(await file.text())});
 $('codeToggle').addEventListener('click',()=>{const p=$('codePanel');p.hidden=!p.hidden;if(!p.hidden){$('jsonEditor').value=JSON.stringify(scene,null,2);p.scrollIntoView({behavior:'smooth',block:'nearest'})}});
 $('refreshJson').addEventListener('click',()=>$('jsonEditor').value=JSON.stringify(scene,null,2));
@@ -108,7 +161,7 @@ async function refreshLicense(){
 }
 function updateAccount(){$('accountBtn').textContent=user?(licensed?'ライセンス有効':'ログイン済み'):'メールログイン';$('licenseMessage').textContent=user?(licensed?'ライセンスを確認できました。':'ログインしています。購入受付はまだ準備中です。'):'決済準備中です。メールログインで購入済み権限を確認できます。';if(licensed)$('licenseDialog').hidden=true}
 $('accountBtn').addEventListener('click',async()=>{$('authDialog').hidden=false;$('authMessage').textContent='接続確認中…';try{await initSupabase();$('authMessage').textContent=user?'ログイン済みです。':'登録済みメールアドレスでログインしてください。'}catch(e){}});
-$('sendLink').addEventListener('click',async()=>{const mail=$('authEmail').value.trim();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail))return $('authMessage').textContent='メールアドレスを確認してください';try{await initSupabase();const {error}=await db.auth.signInWithOtp({email:mail,options:{emailRedirectTo:location.origin+'/diagram/'}});$('authMessage').textContent=error?error.message:'ログイン用メールを送信しました。メールのリンクから戻ってください。'}catch(e){$('authMessage').textContent='ログイン機能が利用できません';}});
+$('sendLink').addEventListener('click',async()=>{const mail=$('authEmail').value.trim();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail))return $('authMessage').textContent='メールアドレスを確認してください';try{await initSupabase();const {error}=await db.auth.signInWithOtp({email:mail,options:{emailRedirectTo:AUTH_RETURN,shouldCreateUser:false}});$('authMessage').textContent=error?error.message:'メールを送信しました。リンクからKPS図解エディターへ戻ってください。ほかのサイトへ移動する場合は認証URL設定の確認が必要です。'}catch(e){$('authMessage').textContent='ログイン機能が利用できません';}});
 $('signOut').addEventListener('click',async()=>{if(db)await db.auth.signOut();licensed=false;user=null;updateAccount();$('authMessage').textContent='ログアウトしました'});
 $('closeAuth').addEventListener('click',()=>$('authDialog').hidden=true);$('closeLicense').addEventListener('click',()=>$('licenseDialog').hidden=true);
 $('loginFromDialog').addEventListener('click',()=>{$('licenseDialog').hidden=true;$('accountBtn').click()});
