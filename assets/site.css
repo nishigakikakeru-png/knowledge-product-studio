@@ -38,3 +38,14 @@
 .article-markdown .table-scroll{width:100%;overflow-x:auto;margin:18px 0 32px;border-radius:9px}
 .article-markdown blockquote{margin:26px 0;padding:18px 23px;background:#eef5f8;border-left:3px solid #4287af}
 @media(max-width:680px){.article-toc{padding:16px 19px;margin:16px 0 35px}.article-markdown h2{font-size:20px;margin:44px 0 18px}.article-markdown h3{font-size:17px;margin:27px 0 11px}.article-markdown p{font-size:14px}.article-markdown li{font-size:13px}}
+
+/* Experience Lab academy entry and responsive menu. */
+.site-header nav{column-gap:16px;row-gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.brand{white-space:normal}
+.lab-course-cta{border-top:1px solid #dce5e8;padding-top:40px;padding-bottom:45px;display:flex;gap:25px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.lab-course-cta h2{font-size:clamp(23px,2.5vw,31px);margin:8px 0 12px}
+.lab-course-cta p{max-width:650px;color:#536a78;font-size:14px;line-height:1.9}
+.lab-course-cta .hero-actions{margin-top:0}
+.academy-inline-link{background:#eaf2f6;padding:13px 17px;border-radius:10px;font-size:13px;margin:18px 0}
+.academy-inline-link a{font-weight:700;text-decoration:underline}
+@media(max-width:900px){.site-header nav{overflow-x:auto;width:100%;flex-wrap:nowrap;justify-content:flex-start;padding-bottom:7px}.site-header nav a{flex:none;white-space:nowrap;font-size:11px}.nav-wrap{flex-wrap:wrap;padding-top:8px;padding-bottom:9px}}

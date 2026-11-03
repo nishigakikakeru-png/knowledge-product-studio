@@ -10,7 +10,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 LESSONS=('problem','design','offer','sales','reach','improve')
-PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/diagram/','/guides/','/guides/experience-to-product/','/guides/paid-note-theme/','/guides/note-vs-pdf/','/about/']
+PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/diagram/','/guides/','/guides/experience-to-product/','/guides/paid-note-theme/','/guides/note-vs-pdf/','/academy/','/academy/seo/','/academy/cases/','/academy/check/','/about/']
 ORIGIN='https://knowledge-product-studio.vercel.app'
 class AuditParser(HTMLParser):
     def __init__(self): super().__init__();self.links=[];self.canon=[];self.robots=[];self.h1=0;self.description=[]
@@ -49,6 +49,14 @@ def static():
         assert '<h1>' in doc and 'noindex,nofollow' in doc
         assert 'href="/guides/"' in doc and 'href="/learn/' in doc
     assert 'href="/guides/"' in (ROOT/'index.html').read_text('utf-8')
+    assert '経験をカタチにするLab' in (ROOT/'index.html').read_text('utf-8')
+    for section in ['','seo/','cases/','check/']:
+        article=(ROOT/'academy'/section/'index.html').read_text('utf-8')
+        assert '経験をカタチにするLab' in article
+        assert 'noindex,nofollow' in article
+    assert '非公式' in (ROOT/'academy'/'check'/'index.html').read_text('utf-8')
+    assert (ROOT/'assets'/'academy-check.js').is_file()
+
 
     # Diagram editing and JSON export must work without authentication.
     diagram_js = (ROOT/'assets'/'diagram.js').read_text('utf-8')
