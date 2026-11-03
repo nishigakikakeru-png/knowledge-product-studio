@@ -145,27 +145,184 @@ function drawPng(){
 $('exportPng').addEventListener('click',()=>{if(!licensed){$('licenseDialog').hidden=false;return;}try{drawPng().toBlob(blob=>{if(!blob)return alert('PNG変換に失敗しました');const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='KPS-図解-'+today()+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),20000)},'image/png')}catch(e){alert('画像を書き出せませんでした：'+e.message)}});
 function renderPalette(){const box=$('palette');box.replaceChildren();for(const color of COLORS){const b=document.createElement('button');b.type='button';b.title=color;b.style.background=color;b.addEventListener('click',()=>{const e=current();if(!e)return;snapshot();e.fill=color;render();schedule();});box.append(b)}}
 $('savePalette').addEventListener('click',async()=>{if(!licensed||!db||!user){$('licenseDialog').hidden=false;return;}const e=current();if(!e)return;const color=e.fill;if(!COLORS.includes(color))COLORS.push(color);const {error}=await db.from('kps_diagram_palettes').upsert({user_id:user.id,colors:COLORS});if(error)setStatus('色の保存は現在準備中です');else{renderPalette();setStatus('色をアカウントに保存しました')}});
-async function initSupabase(){if(db)return db;try{
- if(!window.supabase){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js';script.onload=resolve;script.onerror=reject;document.head.append(script)})}
- db=window.supabase.createClient(SUPABASE_URL,PUBLISHABLE,{auth:{storageKey:'kps-diagram-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});const {data}=await db.auth.getSession();if(data?.session){user=data.session.user;await refreshLicense();}
- db.auth.onAuthStateChange((_event,session)=>{user=session?.user||null;if(!user){licensed=false;updateAccount()}else setTimeout(refreshLicense,0)});
- return db;
- }catch(e){$('authMessage').textContent='ログイン機能を読み込めませんでした';throw e}}
-async function refreshLicense(){
- licensed=false;if(!db||!user){updateAccount();return;}
- try{const {data,error}=await db.from('kps_diagram_entitlements').select('active').eq('user_id',user.id).eq('active',true).maybeSingle();if(!error&&data?.active)licensed=true;
- // Existing owner role is verified against the authenticated user's RLS-protected record.
- if(!licensed){const r=await db.from('app_admins').select('role').eq('user_id',user.id).eq('role','owner').maybeSingle();if(!r.error&&r.data?.role==='owner')licensed=true;}
- if(licensed){const p=await db.from('kps_diagram_palettes').select('colors').eq('user_id',user.id).maybeSingle();if(!p.error&&Array.isArray(p.data?.colors)){COLORS.splice(0,COLORS.length,...p.data.colors.filter(hex=>/^#[0-9a-fA-F]{6}$/.test(hex)).slice(0,64));renderPalette();}}
- }catch(e){licensed=false}updateAccount();
+// KPS uses the existing Supabase identity but a separate browser session.
+// No link-click redirect or CMS-side login is required for the six-digit code flow.
+let otpEmail='',otpCooldownUntil=0,otpTimer=null,authBusy=false;
+function authStatus(message){$('authMessage').textContent=message;}
+function renderAuthDialog(){
+ const signed=Boolean(user);
+ $('authSignedIn').hidden=!signed;
+ $('authRequestForm').hidden=signed||Boolean(otpEmail);
+ $('authVerifyForm').hidden=signed||!otpEmail;
+ $('signOut').hidden=!signed;
+ $('authSessionEmail').textContent=signed?'ログイン中：'+(user.email||'KPSアカウント'):'';
+ $('otpRecipient').textContent=otpEmail?'送信先：'+otpEmail:'';
+ $('authCode').disabled=signed;
+ updateOtpCooldown();
 }
-function updateAccount(){$('accountBtn').textContent=user?(licensed?'ライセンス有効':'ログイン済み'):'メールログイン';$('licenseMessage').textContent=user?(licensed?'ライセンスを確認できました。':'ログインしています。購入受付はまだ準備中です。'):'決済準備中です。メールログインで購入済み権限を確認できます。';if(licensed)$('licenseDialog').hidden=true}
-$('accountBtn').addEventListener('click',async()=>{$('authDialog').hidden=false;$('authMessage').textContent='接続確認中…';try{await initSupabase();$('authMessage').textContent=user?'ログイン済みです。':'登録済みメールアドレスでログインしてください。'}catch(e){}});
-$('sendLink').addEventListener('click',async()=>{const mail=$('authEmail').value.trim();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail))return $('authMessage').textContent='メールアドレスを確認してください';try{await initSupabase();const {error}=await db.auth.signInWithOtp({email:mail,options:{emailRedirectTo:AUTH_RETURN,shouldCreateUser:false}});$('authMessage').textContent=error?error.message:'メールを送信しました。リンクからKPS図解エディターへ戻ってください。ほかのサイトへ移動する場合は認証URL設定の確認が必要です。'}catch(e){$('authMessage').textContent='ログイン機能が利用できません';}});
-$('signOut').addEventListener('click',async()=>{if(db)await db.auth.signOut();licensed=false;user=null;updateAccount();$('authMessage').textContent='ログアウトしました'});
-$('closeAuth').addEventListener('click',()=>$('authDialog').hidden=true);$('closeLicense').addEventListener('click',()=>$('licenseDialog').hidden=true);
+function updateOtpCooldown(){
+ const remaining=Math.max(0,Math.ceil((otpCooldownUntil-Date.now())/1000));
+ $('resendOtp').disabled=authBusy||!otpEmail||remaining>0;
+ $('resendOtp').textContent=remaining>0?'再送信まで '+remaining+'秒':'コードを再送信';
+ if(!remaining&&otpTimer){clearInterval(otpTimer);otpTimer=null;}
+}
+function startOtpCooldown(){
+ otpCooldownUntil=Date.now()+60000;
+ if(otpTimer)clearInterval(otpTimer);
+ otpTimer=setInterval(updateOtpCooldown,1000);
+ updateOtpCooldown();
+}
+function setAuthBusy(busy){
+ authBusy=busy;
+ $('sendLink').disabled=busy;
+ $('verifyCode').disabled=busy;
+ $('changeEmail').disabled=busy;
+ updateOtpCooldown();
+}
+async function initSupabase(){
+ if(db)return db;
+ try{
+  if(!window.supabase){
+   await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js';script.onload=resolve;script.onerror=reject;document.head.append(script)});
+  }
+  // A unique storage key keeps KPS login tokens distinct from other apps.
+  // Code-based verification creates the session here, not via an email redirect.
+  db=window.supabase.createClient(SUPABASE_URL,PUBLISHABLE,{auth:{
+   storageKey:'kps-diagram-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:false
+  }});
+  db.auth.onAuthStateChange((_event,session)=>{
+   user=session?.user||null;
+   if(!user){licensed=false;updateAccount();}
+   else setTimeout(()=>refreshLicense(),0);
+  });
+  const {data,error}=await db.auth.getSession();
+  if(error)throw error;
+  if(data?.session){
+   const account=await db.auth.getUser();
+   if(!account.error&&account.data?.user){user=account.data.user;await refreshLicense();}
+   else {user=null;licensed=false;updateAccount();}
+  }else{user=null;licensed=false;updateAccount();}
+  return db;
+ }catch(e){authStatus('KPS認証の接続に失敗しました。時間をおいて再度お試しください。');throw e;}
+}
+async function refreshLicense(){
+ licensed=false;
+ if(!db||!user){updateAccount();return;}
+ const id=user.id;
+ try{
+  const {data,error}=await db.from('kps_diagram_entitlements')
+   .select('active').eq('user_id',id).eq('active',true).maybeSingle();
+  if(!error&&data?.active)licensed=true;
+  if(!licensed){
+   const owner=await db.from('app_admins').select('role').eq('user_id',id).eq('role','owner').maybeSingle();
+   if(!owner.error&&owner.data?.role==='owner')licensed=true;
+  }
+  if(licensed){
+   const p=await db.from('kps_diagram_palettes').select('colors').eq('user_id',id).maybeSingle();
+   if(!p.error&&Array.isArray(p.data?.colors)){
+    COLORS.splice(0,COLORS.length,...p.data.colors.filter(hex=>/^#[0-9a-fA-F]{6}$/.test(hex)).slice(0,64));
+    renderPalette();
+   }
+  }
+ }catch(e){licensed=false;}
+ if(!user||user.id!==id){licensed=false;return;}
+ updateAccount();
+}
+function updateAccount(){
+ $('accountBtn').textContent=user?(licensed?'ライセンス有効':'KPSログイン済み'):'KPSログイン';
+ $('licenseMessage').textContent=user?(licensed?'KPSの利用権限を確認できました。':'ログイン済みです。書き出し購入は現在準備中です。'):'買い切り決済は準備中です。KPSにログインすると既存の利用権限を確認できます。';
+ if(licensed)$('licenseDialog').hidden=true;
+ renderAuthDialog();
+}
+$('accountBtn').addEventListener('click',async()=>{
+ $('authDialog').hidden=false;
+ authStatus('KPSのログイン状態を確認しています。');
+ renderAuthDialog();
+ try{await initSupabase();authStatus(user?'KPSにログインしています。':'メールアドレスを入力して6桁コードを受け取ってください。');}catch(e){}
+});
+async function sendOtp(email){
+ if(authBusy)return;
+ if(Date.now()<otpCooldownUntil){updateOtpCooldown();authStatus('再送信は表示された秒数が経過してから行ってください。');return;}
+ if(!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)){authStatus('メールアドレスを確認してください。');return;}
+ setAuthBusy(true);
+ authStatus('認証コードを送信しています。');
+ try{
+  await initSupabase();
+  const {error}=await db.auth.signInWithOtp({
+   email,options:{shouldCreateUser:true,emailRedirectTo:AUTH_RETURN}
+  });
+  if(error)throw error;
+  otpEmail=email;
+  $('authCode').value='';
+  startOtpCooldown();
+  renderAuthDialog();
+  $('authCode').focus();
+  authStatus('メール内の6桁コードを、この画面へ入力してください。メールのリンクは開かないでください。数字がない場合はメールテンプレートの設定が必要です。');
+ }catch(e){
+  authStatus('送信できませんでした。メールアドレス、通信状態、送信回数制限を確認してください。');
+ }finally{setAuthBusy(false);}
+}
+$('authRequestForm').addEventListener('submit',event=>{
+ event.preventDefault();
+ void sendOtp($('authEmail').value.trim().toLowerCase());
+});
+$('authCode').addEventListener('input',()=>{
+ const clean=$('authCode').value.replace(/\\D/g,'').slice(0,6);
+ if($('authCode').value!==clean)$('authCode').value=clean;
+});
+$('authVerifyForm').addEventListener('submit',async event=>{
+ event.preventDefault();
+ if(authBusy)return;
+ const token=$('authCode').value.replace(/\\D/g,'');
+ if(!otpEmail||!/^[0-9]{6}$/.test(token)){authStatus('6桁の数字を入力してください。');return;}
+ setAuthBusy(true);
+ authStatus('認証コードを確認しています。');
+ try{
+  await initSupabase();
+  const {data,error}=await db.auth.verifyOtp({email:otpEmail,token,type:'email'});
+  if(error||!data?.session?.user)throw error||new Error('No session');
+  user=data.session.user;
+  otpEmail='';
+  $('authCode').value='';
+  await refreshLicense();
+  renderAuthDialog();
+  authStatus(licensed?'KPSにログインしました。永久利用権限を確認しました。':'KPSにログインしました。無料の編集機能を利用できます。');
+  $('authDialog').hidden=true;
+  setStatus(licensed?'KPSの利用権限を確認しました':'KPSにログインしました');
+ }catch(e){
+  authStatus('認証コードが一致しないか期限切れです。最新の6桁コードを確認してください。');
+  $('authCode').select();
+ }finally{setAuthBusy(false);}
+});
+$('resendOtp').addEventListener('click',()=>{
+ if(otpEmail)void sendOtp(otpEmail);
+});
+$('changeEmail').addEventListener('click',()=>{
+ otpEmail='';
+ $('authCode').value='';
+ renderAuthDialog();
+ $('authEmail').focus();
+ authStatus('新しい送信先のメールアドレスを入力してください。');
+});
+$('signOut').addEventListener('click',async()=>{
+ if(!db){authStatus('KPSへ接続できません。');return;}
+ setAuthBusy(true);
+ try{
+  // Supabase's default global sign-out would invalidate CMS sessions too.
+  const {error}=await db.auth.signOut({scope:'local'});
+  if(error)throw error;
+  user=null;licensed=false;otpEmail='';
+  updateAccount();
+  authStatus('KPSからのみログアウトしました。他のアプリのログインは維持されます。');
+ }catch(e){authStatus('ログアウトに失敗しました。再度お試しください。');}
+ finally{setAuthBusy(false);}
+});
+$('closeAuth').addEventListener('click',()=>$('authDialog').hidden=true);
+$('closeLicense').addEventListener('click',()=>$('licenseDialog').hidden=true);
 $('loginFromDialog').addEventListener('click',()=>{$('licenseDialog').hidden=true;$('accountBtn').click()});
-for(const node of [$('licenseDialog'),$('authDialog')])node.addEventListener('pointerdown',e=>{if(e.target===node)node.hidden=true});
+for(const node of [$('licenseDialog'),$('authDialog')]){
+ node.addEventListener('pointerdown',e=>{if(e.target===node)node.hidden=true});
+}
 window.addEventListener('pagehide',()=>{clearTimeout(saveTimer);persist()});
 load();render();requestAnimationFrame(fit);window.addEventListener('resize',()=>{if(scale<1)fit()});initSupabase().catch(()=>{});
 })();
