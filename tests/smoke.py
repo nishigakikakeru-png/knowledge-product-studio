@@ -10,7 +10,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 LESSONS=('problem','design','offer','sales','reach','improve')
-PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/diagram/','/about/']
+PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/diagram/','/guides/','/guides/experience-to-product/','/guides/paid-note-theme/','/guides/note-vs-pdf/','/about/']
 ORIGIN='https://knowledge-product-studio.vercel.app'
 class AuditParser(HTMLParser):
     def __init__(self): super().__init__();self.links=[];self.canon=[];self.robots=[];self.h1=0;self.description=[]
@@ -42,6 +42,14 @@ def static():
     assert 'Allow: /' in (ROOT/'robots.txt').read_text()
     conf=json.loads((ROOT/'vercel.json').read_text())
     assert 'noindex' in json.dumps(conf)
+    # SEO content intentionally remains noindex until editorial release; entry cluster is distinct.
+    guide_pages=['experience-to-product','paid-note-theme','note-vs-pdf']
+    for slug in guide_pages:
+        doc=(ROOT/'guides'/slug/'index.html').read_text('utf-8')
+        assert '<h1>' in doc and 'noindex,nofollow' in doc
+        assert 'href="/guides/"' in doc and 'href="/learn/' in doc
+    assert 'href="/guides/"' in (ROOT/'index.html').read_text('utf-8')
+
     # Diagram editing and JSON export must work without authentication.
     diagram_js = (ROOT/'assets'/'diagram.js').read_text('utf-8')
     assert "const URL=" not in diagram_js, 'URL shadowing breaks URL.createObjectURL download'
