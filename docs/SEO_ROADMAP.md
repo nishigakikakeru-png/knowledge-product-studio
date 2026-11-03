@@ -1,8 +1,14 @@
 # KPS SEO roadmap — 2026-11-03
 
 ## Positioning
-Current public-facing name is still 商材設計ラボ (provisional). Avoid implying only aggressive "information merchandise" sales. Public proposition: 仕事・勉強・趣味の経験や知識を、note・PDF教材など誰かに役立つ形へ変える。 
-Do not change domain or formal brand name without owner approval. The first SEO content focus is note/PDF, not a ban on other digital products.
+Official public name as of 2026-11-03: 経験をカタチにするLab. KPS remains the internal project abbreviation. Avoid implying only aggressive "information merchandise" sales. Public proposition: 仕事・勉強・趣味の経験や知識を、note・PDF教材など誰かに役立つ形へ変える。 
+The owner approved the name; domain and canonical origin stay unchanged to preserve links. The first SEO content focus is note/PDF, not a ban on other digital products.
+
+## Academy / learning model
+- /academy/ — 8 competency areas designed around an explicitly hypothetical 商材屋 benchmark.
+- /academy/seo/ — search intent, on-page structure, internal links and web marketing practice using actual CMS articles.
+- /academy/cases/ — first-hand examples: Character Motion Studio Learn page structure, coffee exam learning products, and KPS itself. Evidence of implementation is distinct from verified SEO/sales outcomes.
+- /academy/check/ — original 8-question self-check, no public qualification or certification and no user score storage.
 
 ## New editorial hub
 - /guides/ — entry hub.

@@ -49,3 +49,10 @@ Static HTML/CSS/JS; Vercel framework Other. No npm dependencies. Do not deploy t
 - Existing CMS code, authentication logic and billing state must remain unchanged. Never repoint the Supabase Site URL from CMS to KPS.
 - Operator setup prerequisite: append `{{ .Token }}` to the shared Supabase Magic Link email template **without removing the existing CMS link**. The connector currently cannot edit Auth email templates. See `docs/KPS_EMAIL_OTP_SETUP.md`; do not claim end-to-end OTP delivery was verified before that change.
 - Keep test assertions for both mobile and desktop OTP inputs, independent local logout, free JSON export, and owner entitlement lookup.
+
+## Brand and learning design (2026-11-03)
+- Official public name is exactly `経験をカタチにするLab`; repository name and KPS as internal acronym remain unchanged. Do not show `商材設計ラボ` as the current site name.
+- The site teaches the skills behind ethical product design and web marketing: identifying useful experiences, search intent, SEO, article architecture, product format, pricing, conversion pathways, analytics and iteration.
+- The `商材屋の合格ライン` is a hypothetical competency metaphor, NOT a real examination, certification, government qualification or the official SEO検定. The self-check is an original, non-accredited study aid, with no issued credentials.
+- `/academy/` is the learning map; `/academy/seo/` a first SEO study module; `/academy/cases/` original examples grounded in current CMS code and prior work; `/academy/check/` a local-only knowledge check. Do not duplicate private COS Brain or user work.
+- Preserve all existing KPS storage keys, authentication/session separation and separate CMS code. Keep whole site noindex until editorial, legal and UX review; do not claim unmeasured search ranking or income results.
