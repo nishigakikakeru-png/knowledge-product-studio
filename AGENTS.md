@@ -42,3 +42,10 @@ Static HTML/CSS/JS; Vercel framework Other. No npm dependencies. Do not deploy t
 - Checkout, Stripe webhook and lifetime entitlement database migration are not active yet. Display purchase as '準備中' until verified backend authorization and test checkout complete. Never grant paid features using a client-controlled email field or localStorage boolean.
 - The UI can query an authenticated owner role via Supabase; live owner availability requires end-to-end browser login validation. Client-side PNG gating is not strong DRM and cannot secure an active paid service alone.
 - KPS only embeds a link to Piggy Mix; no cross-origin access to its user palettes is implemented. External AI integration uses explicit JSON exchange, without automatic API requests.
+
+## KPS authentication implementation (2026-11-03)
+- KPS uses independent six-digit email OTP UI (`auth.signInWithOtp` + `verifyOtp({ type:'email' })`), not email-link navigation to CMS. A KPS-specific session key `kps-diagram-auth` stores the browser session. Supabase identity by email is shared; license and UI are application-specific.
+- Sign out KPS with `auth.signOut({scope:'local'})` only. Do not use Supabase's default global signout because it may invalidate CMS/other sessions.
+- Existing CMS code, authentication logic and billing state must remain unchanged. Never repoint the Supabase Site URL from CMS to KPS.
+- Operator setup prerequisite: append `{{ .Token }}` to the shared Supabase Magic Link email template **without removing the existing CMS link**. The connector currently cannot edit Auth email templates. See `docs/KPS_EMAIL_OTP_SETUP.md`; do not claim end-to-end OTP delivery was verified before that change.
+- Keep test assertions for both mobile and desktop OTP inputs, independent local logout, free JSON export, and owner entitlement lookup.
