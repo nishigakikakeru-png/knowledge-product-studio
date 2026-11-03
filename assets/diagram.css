@@ -4,3 +4,21 @@
 .d-arrow::before{content:"";position:absolute;left:0;right:13px;top:calc(50% - 2px);height:var(--arrow-width,4px);background:var(--arrow-color,#7898a8);border-radius:4px;}
 .d-arrow::after{right:0;top:calc(50% - 8px);border-left-color:var(--arrow-color,#7898a8)}
 .d-arrow .d-resize{bottom:-8px}
+
+/* KPS six-digit email OTP sign-in. Works on both narrow phones and desktop. */
+.kps-auth-dialog{max-height:min(90dvh,700px);overflow-y:auto;overscroll-behavior:contain}
+.kps-auth-dialog .eyebrow{margin-bottom:5px}
+.kps-auth-dialog form[hidden],.kps-auth-dialog section[hidden],.kps-auth-dialog button[hidden]{display:none!important}
+.kps-auth-dialog form{margin:15px 0;display:grid;gap:12px}
+.kps-auth-dialog form .button{justify-self:start}
+.kps-auth-dialog #authEmail{font-size:16px}
+.kps-auth-dialog #authCode{font-size:24px;font-weight:700;letter-spacing:.28em;text-align:center;font-variant-numeric:tabular-nums;max-width:280px}
+.kps-auth-dialog .auth-inline-actions{display:flex;flex-wrap:wrap;gap:8px}
+.kps-auth-dialog .auth-inline-actions .button{font-size:12px;padding:9px 12px}
+.kps-auth-dialog .auth-recipient{font-size:12px;overflow-wrap:anywhere}
+.kps-auth-dialog .auth-success{border-radius:9px;background:#e9f5f2;color:#12665b;padding:10px 12px;overflow-wrap:anywhere}
+.kps-auth-dialog .auth-message{min-height:24px;line-height:1.7;font-size:12px;overflow-wrap:anywhere}
+.kps-auth-dialog .auth-help{margin-top:14px;border-top:1px solid #dce4e8;padding-top:12px}
+.kps-auth-dialog .auth-help summary{cursor:pointer;color:#446479;font-size:12px}
+.kps-auth-dialog .auth-help p{font-size:11px;line-height:1.8;margin:8px 0 0}
+@media(max-width:560px){.kps-auth-dialog .button{padding:10px 13px}.kps-auth-dialog #authCode{max-width:100%}}
