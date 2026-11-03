@@ -1,6 +1,6 @@
 (()=>{'use strict';
 const SCHEMA='kps-diagram-v1',KEY='kps-diagram-draft-v1', W=1100,H=660, MAX=100, COLORS=['#ffffff','#202a38','#dfeaf1','#e5c0a0','#8dbcc4','#f4deaf','#7291b5','#cee1cc'];
-const URL='https://kknhlihfrkyebebkockh.supabase.co', PUBLISHABLE='sb_publishable_zaCpsdP0HCh3C4vBmCBdeg_qnns3oar',AUTH_RETURN='https://knowledge-product-studio.vercel.app/diagram/';
+const SUPABASE_URL='https://kknhlihfrkyebebkockh.supabase.co', PUBLISHABLE='sb_publishable_zaCpsdP0HCh3C4vBmCBdeg_qnns3oar',AUTH_RETURN='https://knowledge-product-studio.vercel.app/diagram/';
 const $=id=>document.getElementById(id),stage=$('stage'),space=$('stageSpace'),viewport=$('viewport'),inspector=$('inspector');
 const fonts={sans:'"Noto Sans JP","Yu Gothic",sans-serif',serif:'"Noto Serif JP","Yu Mincho",serif',mono:'ui-monospace,monospace'};
 let db=null,user=null,licensed=false,selected=null,scale=1,drag=null,saveTimer=null,history=[],future=[];
@@ -147,7 +147,7 @@ function renderPalette(){const box=$('palette');box.replaceChildren();for(const 
 $('savePalette').addEventListener('click',async()=>{if(!licensed||!db||!user){$('licenseDialog').hidden=false;return;}const e=current();if(!e)return;const color=e.fill;if(!COLORS.includes(color))COLORS.push(color);const {error}=await db.from('kps_diagram_palettes').upsert({user_id:user.id,colors:COLORS});if(error)setStatus('色の保存は現在準備中です');else{renderPalette();setStatus('色をアカウントに保存しました')}});
 async function initSupabase(){if(db)return db;try{
  if(!window.supabase){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js';script.onload=resolve;script.onerror=reject;document.head.append(script)})}
- db=window.supabase.createClient(URL,PUBLISHABLE,{auth:{storageKey:'kps-diagram-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});const {data}=await db.auth.getSession();if(data?.session){user=data.session.user;await refreshLicense();}
+ db=window.supabase.createClient(SUPABASE_URL,PUBLISHABLE,{auth:{storageKey:'kps-diagram-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});const {data}=await db.auth.getSession();if(data?.session){user=data.session.user;await refreshLicense();}
  db.auth.onAuthStateChange((_event,session)=>{user=session?.user||null;if(!user){licensed=false;updateAccount()}else setTimeout(refreshLicense,0)});
  return db;
  }catch(e){$('authMessage').textContent='ログイン機能を読み込めませんでした';throw e}}
