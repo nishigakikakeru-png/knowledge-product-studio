@@ -243,7 +243,7 @@ $('accountBtn').addEventListener('click',async()=>{
 async function sendOtp(email){
  if(authBusy)return;
  if(Date.now()<otpCooldownUntil){updateOtpCooldown();authStatus('再送信は表示された秒数が経過してから行ってください。');return;}
- if(!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)){authStatus('メールアドレスを確認してください。');return;}
+ if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){authStatus('メールアドレスを確認してください。');return;}
  setAuthBusy(true);
  authStatus('認証コードを送信しています。');
  try{
@@ -267,13 +267,13 @@ $('authRequestForm').addEventListener('submit',event=>{
  void sendOtp($('authEmail').value.trim().toLowerCase());
 });
 $('authCode').addEventListener('input',()=>{
- const clean=$('authCode').value.replace(/\\D/g,'').slice(0,6);
+ const clean=$('authCode').value.replace(/\D/g,'').slice(0,6);
  if($('authCode').value!==clean)$('authCode').value=clean;
 });
 $('authVerifyForm').addEventListener('submit',async event=>{
  event.preventDefault();
  if(authBusy)return;
- const token=$('authCode').value.replace(/\\D/g,'');
+ const token=$('authCode').value.replace(/\D/g,'');
  if(!otpEmail||!/^[0-9]{6}$/.test(token)){authStatus('6桁の数字を入力してください。');return;}
  setAuthBusy(true);
  authStatus('認証コードを確認しています。');
