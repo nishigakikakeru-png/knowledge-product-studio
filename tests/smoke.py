@@ -200,7 +200,7 @@ def browser():
                         }};
                     """)
                     auth_page=auth_ctx.new_page()
-                    assert auth_page.goto(base+'/diagram/').status==200
+                    assert auth_page.goto(base+'/diagram/',wait_until='domcontentloaded').status==200
                     # JSON and PNG downloads require no login and no purchase.
                     with auth_page.expect_download() as d:auth_page.locator('#saveJsonTop').click()
                     assert d.value.suggested_filename.endswith('.json')
