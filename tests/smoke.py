@@ -120,7 +120,11 @@ def browser():
         base='http://127.0.0.1:'+str(server.server_address[1])
         try:
             with sync_playwright() as playwright:
-                browser=playwright.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+                import shutil
+                chromium_path=shutil.which('chromium') or shutil.which('chromium-browser')
+                launch_args={'headless':True,'args':['--no-sandbox']}
+                if chromium_path:launch_args['executable_path']=chromium_path
+                browser=playwright.chromium.launch(**launch_args)
                 for width in [390,1280]:
                     ctx=browser.new_context(viewport={'width':width,'height':850},accept_downloads=True)
                     page=ctx.new_page();errs=[];page.on('pageerror',lambda e:errs.append(str(e)))
@@ -204,7 +208,7 @@ def browser():
                     assert png.value.suggested_filename.endswith('.png')
                     # Saving a color uses localStorage, including after a page reload.
                     auth_page.locator('.d-element').first.click()
-                    auth_page.locator('#fillColor').fill('#a1b2c3')
+                    auth_page.locator('#fillColor').evaluate("(el)=>{el.value='#a1b2c3';el.dispatchEvent(new Event('input',{bubbles:true}))}")
                     auth_page.locator('#savePalette').click()
                     assert auth_page.evaluate("JSON.parse(localStorage.getItem('kps-diagram-colors-v1')).includes('#a1b2c3')")
                     auth_page.reload()
