@@ -4,7 +4,7 @@ import http.server
 import socketserver
 import threading
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 import xml.etree.ElementTree as ET
 import json
 
@@ -86,9 +86,15 @@ def static():
     assert "if(!confirm('現在の図解を新しいファイルに置き換えますか？'))" not in diagram_js, 'no blocking dialog for file import'
     assert "scene.width*mul" in diagram_js and "scene.height*mul" in diagram_js, 'PNG uses loaded canvas dimensions'
     assert 'id="canvasSizeLabel"' in diagram_html and 'id="jsonImportStatus"' in diagram_html, 'visible size and import result'
+    assert 'id="copyImportUrl"' in diagram_html and 'id="importUrlFallback"' in diagram_html, 'URL import link UI'
+    assert "window.addEventListener('hashchange',importFromLocationHash)" in diagram_js, 'URL import must work without typing'
+    assert "window.history.replaceState" in diagram_js, 'successful import must clear sensitive hash'
+    assert "resetFrom(data,'URL')" in diagram_js, 'URL import uses same validated path as file import'
+    assert "window.location.hash" in diagram_js, 'fragment-based import, never URL query sent to server'
+    assert "MAX_IMPORT_URL_CHARS=32000" in diagram_js, 'URL length cap'
     sample = json.loads((ROOT/'diagram'/'example.json').read_text('utf-8'))
     assert sample['schema']=='kps-diagram-v1' and len(sample['elements'])>=3
-    assert 'v=6' in (ROOT/'diagram'/'index.html').read_text('utf-8')
+    assert 'v=7' in (ROOT/'diagram'/'index.html').read_text('utf-8')
     assert "const KEY='kps-thought-v1'" in (ROOT/'assets'/'thinking.js').read_text()
     assert "const KEY='kps-product-v1'" in (ROOT/'assets'/'studio.js').read_text()
     for slug in LESSONS:
@@ -272,6 +278,66 @@ def browser():
                     many_file=Path('/tmp/kps-import-15-elements.png')
                     many_png.value.save_as(many_file)
                     assert struct.unpack('>II',many_file.read_bytes()[16:24])==(2200,1760)
+
+                    # Muse handoff (2026-11-07): AI opens a URL; it must import
+                    # without typing in a textarea or relying on synthetic input events.
+                    auth_page.locator('#codeToggle').click()
+                    auth_page.evaluate("""() => {
+                      Object.defineProperty(navigator,'clipboard',{
+                        configurable:true,
+                        value:{writeText:async text=>{window.__diagramUrlCopied=text}}
+                      });
+                    }""")
+                    auth_page.locator('#copyImportUrl').click()
+                    auth_page.wait_for_function("typeof window.__diagramUrlCopied==='string'")
+                    generated_link=auth_page.evaluate('window.__diagramUrlCopied')
+                    assert generated_link.startswith(base+'/diagram/#import=b64.')
+                    assert len(generated_link)<32000
+                    assert 'URLをコピー' in auth_page.locator('#jsonImportStatus').inner_text()
+                    # A second page in the same browser starts from the 15-element
+                    # saved draft. A link import must auto-run, confirm success, then
+                    # remove the JSON fragment from the address bar.
+                    linked_page=auth_ctx.new_page()
+                    assert linked_page.goto(generated_link,wait_until='domcontentloaded').status==200
+                    linked_page.wait_for_function(
+                        "document.querySelectorAll('#stage .d-element').length===15 && window.location.hash===''")
+                    assert linked_page.locator('#canvasSizeLabel').inner_text()=='1100 × 880px'
+                    assert 'URLを反映しました' in linked_page.locator('#saveStatus').inner_text()
+                    # Percent-encoded JSON is accepted as well as compact base64url.
+                    # This URL differs from the saved 15-element scene.
+                    from_url={**one_box,'height':760,'elements':[
+                        {**one_box['elements'][0],'text':'URL入力確認'}]}
+                    plain_link=base+'/diagram/#import='+quote(
+                        json.dumps(from_url,ensure_ascii=False,separators=(',',':')),safe='')
+                    linked_page.evaluate('(url)=>{window.location.href=url}',plain_link)
+                    linked_page.wait_for_function(
+                        "document.querySelectorAll('#stage .d-element').length===1 && document.querySelector('#canvasSizeLabel').textContent==='1100 × 760px' && window.location.hash===''")
+                    assert linked_page.locator('#stage').inner_text().strip()=='URL入力確認'
+                    assert '産地一覧 1' in linked_page.evaluate(
+                        "localStorage.getItem('kps-diagram-previous-before-import-v1')")
+                    with linked_page.expect_download() as url_png:
+                        linked_page.locator('#exportPng').click()
+                    url_file=Path('/tmp/kps-import-from-url.png')
+                    url_png.value.save_as(url_file)
+                    assert struct.unpack('>II',url_file.read_bytes()[16:24])==(2200,1520)
+                    # An invalid link reports an error, without touching the drawing.
+                    linked_page.evaluate('(url)=>{window.location.href=url}',base+'/diagram/#import=b64.bad!data')
+                    linked_page.wait_for_function(
+                        "document.querySelector('#jsonImportStatus').textContent.includes('読み込めません')")
+                    assert linked_page.locator('#stage').inner_text().strip()=='URL入力確認'
+                    linked_page.locator('#undo').click()
+                    assert linked_page.locator('#stage .d-element').count()==15
+                    assert linked_page.locator('#canvasSizeLabel').inner_text()=='1100 × 880px'
+                    linked_page.close()
+                    # If clipboard access is blocked, a selectable link must appear.
+                    auth_page.evaluate("""() => {
+                      Object.defineProperty(navigator,'clipboard',{
+                        configurable:true,value:{writeText:async()=>{throw Error('blocked')}}
+                      });
+                    }""")
+                    auth_page.locator('#copyImportUrl').click()
+                    assert auth_page.locator('#importUrlFallback').is_visible()
+                    assert '#import=b64.' in auth_page.locator('#importUrlFallback').input_value()
 
                     # Saving a color uses localStorage, including after a page reload.
                     auth_page.locator('.d-element').first.click()

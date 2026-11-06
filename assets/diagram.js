@@ -192,6 +192,73 @@ $('openJson').addEventListener('change',async e=>{
 $('codeToggle').addEventListener('click',()=>{const p=$('codePanel');p.hidden=!p.hidden;if(!p.hidden){$('jsonEditor').value=JSON.stringify(scene,null,2);p.scrollIntoView({behavior:'smooth',block:'nearest'})}});
 $('refreshJson').addEventListener('click',()=>$('jsonEditor').value=JSON.stringify(scene,null,2));
 $('applyJson').addEventListener('click',()=>{resetFrom($('jsonEditor').value,'貼り付けたJSON')});
+// A URL fragment is not sent in the HTTP request. This allows an AI/browser
+// workflow to open a complete diagram without typing into the editor.
+// Format: /diagram/#import=b64.<UTF8-JSON-as-base64url>.
+// Also accept a percent-encoded JSON payload for simple external integrations.
+const MAX_IMPORT_URL_CHARS=32000;
+function decodeImportUrl(payload){
+ if(!payload)throw Error('図解データがありません');
+ if(payload.length>MAX_IMPORT_URL_CHARS)throw Error('URLが長すぎます。JSONファイルで読み込んでください');
+ let content;
+ if(payload.startsWith('b64.')){
+  const base=payload.slice(4);
+  if(!base||!/^[A-Za-z0-9_-]+$/.test(base))throw Error('URL用の図解データ形式が不正です');
+  const padded=base.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-base.length%4)%4);
+  const binary=atob(padded);
+  content=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(binary,c=>c.charCodeAt(0)));
+ }else{
+  content=decodeURIComponent(payload);
+ }
+ if(content.length>600000)throw Error('図解データが大きすぎます');
+ return content;
+}
+function importFromLocationHash(){
+ const hash=window.location.hash;
+ if(!hash.startsWith('#import='))return false;
+ try{
+  const data=decodeImportUrl(hash.slice('#import='.length));
+  if(resetFrom(data,'URL')){
+   // Avoid reimporting on reload, and do not retain the diagram in the URL.
+   // Undo history and the previous-document backup remain available.
+   window.history.replaceState(window.history.state,'',window.location.pathname+window.location.search);
+   return true;
+  }
+  $('codePanel').hidden=false;
+ }catch(error){
+  importFeedback('URLの図解を読み込めません：'+error.message);
+  $('codePanel').hidden=false;
+ }
+ return false;
+}
+function diagramImportLink(){
+ const source=new TextEncoder().encode(jsonText());
+ if(source.byteLength>24000)throw Error('図解が大きいためURLに収まりません。JSONファイルをご利用ください');
+ const base=btoa(Array.from(source,byte=>String.fromCharCode(byte)).join('')).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+ const link=window.location.origin+window.location.pathname+'#import=b64.'+base;
+ if(link.length>MAX_IMPORT_URL_CHARS)throw Error('URLが長すぎます。JSONファイルをご利用ください');
+ return link;
+}
+$('copyImportUrl').addEventListener('click',async()=>{
+ let url;
+ try{
+  url=diagramImportLink();
+  if(!navigator.clipboard?.writeText)throw Error('copy not available');
+  await navigator.clipboard.writeText(url);
+  $('importUrlFallback').hidden=true;
+  importFeedback('図解を読み込めるURLをコピーしました。URLを開くと現在の図解を再現できます。',true);
+ }catch(error){
+  if(url){
+   $('importUrlFallback').hidden=false;
+   $('importUrlFallback').value=url;
+   $('importUrlFallback').focus();
+   $('importUrlFallback').select();
+   importFeedback('URLを表示しました。選択してコピーしてください。',true);
+  }else importFeedback('URLを作れません：'+error.message);
+ }
+});
+window.addEventListener('hashchange',importFromLocationHash);
+
 $('copyPrompt').addEventListener('click',async()=>{const prompt='次の文章からnote用の見やすいフローチャートを作成してください。出力は説明文なしのJSONのみ。スキーマは '+SCHEMA+'、width:1100、height:660、background:#ffffff、elements配列（最大30要素）。各要素は type:box|text|arrow|symbol, x,y,w,h,text,fill,stroke,color,size,radius,angle,opacity,font:sans|serif|mono,align:left|center|right,z を必須としてください。要素はキャンバス内に収め、文字が重ならないようにしてください。ユーザーの文章: 【ここに文章を貼る】';try{await navigator.clipboard.writeText(prompt);setStatus('外部AI用指示文をコピーしました')}catch(e){alert(prompt)}});
 function wrapLines(ctx,str,maxw){const lines=[];for(const par of String(str).split('\n')){let line='';for(const ch of [...par]){if(ctx.measureText(line+ch).width>maxw&&line){lines.push(line);line=ch}else line+=ch;}lines.push(line);}return lines;}
 function drawPng(){
@@ -401,5 +468,5 @@ for(const node of [$('authDialog')]){
  node.addEventListener('pointerdown',e=>{if(e.target===node)node.hidden=true});
 }
 window.addEventListener('pagehide',()=>{clearTimeout(saveTimer);persist()});
-load();render();requestAnimationFrame(fit);window.addEventListener('resize',()=>{if(scale<1)fit()});initSupabase().catch(()=>{});
+load();render();requestAnimationFrame(fit);importFromLocationHash();window.addEventListener('resize',()=>{if(scale<1)fit()});initSupabase().catch(()=>{});
 })();

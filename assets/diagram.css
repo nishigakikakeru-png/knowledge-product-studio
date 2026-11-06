@@ -30,3 +30,7 @@
 .diagram-import-feedback[data-state="success"]{background:#edf8f2;border-color:#b6d8c1;color:#195b3c}
 .diagram-import-feedback[data-state="error"]{background:#fff1ed;border-color:#f4bbb0;color:#903729}
 .diagram-canvas-top #canvasSizeLabel{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* Link-based diagram import fallback when clipboard access is unavailable. */
+.diagram-import-url{width:100%;box-sizing:border-box;overflow-wrap:anywhere;font-size:12px;line-height:1.5;}
+.diagram-import-url[hidden]{display:none!important}
