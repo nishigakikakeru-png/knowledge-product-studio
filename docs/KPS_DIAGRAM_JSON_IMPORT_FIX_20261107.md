@@ -40,3 +40,46 @@ Museからの引継ぎ：`/diagram/`でKPS図解JSONを「ファイル読込」�
 - 無料PNG、端末内色保存、既存の任意6桁コード認証テストが引き続き成功すること。
 
 ※ユーザー固有の15要素の本番JSONや3つのMuseデータは引継ぎ文に含まれないため、テスト用に生成した15要素のJSONで確認する。実際の3点は利用者側で読み込んで最終確認する。
+
+## 追記：URLで直接図解を読み込む（2026-11-07）
+
+### 背景
+Museの追記引継ぎでは、**本人の手入力では図解が描画された一方、AIブラウザの画面入力では反映されなかった**との検証結果が報告された。入力イベントの欠落という原因仮説は、KPSの現行実装が`textarea.value`を直接読んでいるため、現時点では確定とはいえない。ただし、**入力欄への自動操作を回避する**という改善方針は合理的。
+
+### URL仕様
+正式URL：`https://knowledge-product-studio.vercel.app/diagram/`
+推奨フォーマット：
+```text
+https://knowledge-product-studio.vercel.app/diagram/#import=b64.<UTF-8 JSONをbase64url化した文字列>
+```
+簡易フォーマット：
+```text
+https://knowledge-product-studio.vercel.app/diagram/#import=<encodeURIComponent(JSON.stringify(diagram))>
+```
+
+- ユーザーまたはAI側がURLを開くと、ページ起動時に`location.hash`からJSONを取り出し、既存のファイル読込と**同じ検証処理**で直接描画する。
+- 同じページを開いたまま新しい`#import=`へ移動した場合も読み込み可能。
+- 操作前の図解は`kps-diagram-previous-before-import-v1`へ退避し、「戻す」で復旧可能。従来の下書きキー`kps-diagram-draft-v1`はそのまま。
+- 読み込み成功時はハッシュをブラウザのURLから削除して、更新時に再読み込みされることを防ぐ。失敗時は編集内容を変更せず、上部ステータスとコード欄にエラー表示。
+- URLに埋め込む文字列は最大32,000文字。大きな図解はファイル読込へ切り替える。
+- ハッシュ部分は通常のHTTPリクエストのURLとしてサーバーに送られない。ただし、**URLを共有すると図解の内容も渡る**。機密データや未公開個人情報を含む図解はリンクとして配布しないこと。
+- 「コード / AI」欄の**「図解を開くURLをコピー」**で、現在の図解の共有リンクを生成できる。クリップボードが使えない場合は、コピー可能なテキスト欄を表示する。
+- URL読込にはログイン、決済、APIキーは不要。PNG無料化・Supabase任意認証・CMSログイン情報には変更なし。
+- 元のHTMLを埋め込むiframeや外部AIからの画面入力を必要とせず、`kps-diagram-v1`形式のJSONがあれば外部側でURLを生成できる。
+
+### AI側のURL生成例（JavaScript）
+```js
+const bytes = new TextEncoder().encode(JSON.stringify(diagram));
+const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+const code = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const url = 'https://knowledge-product-studio.vercel.app/diagram/#import=b64.' + code;
+// このURLをブラウザで開く。図解のJSONをtextareaに自動入力する必要はない。
+```
+
+### 回帰テスト
+- 現在の15要素図解からコピーした`b64.` URLを新しいタブで開き、15要素が描画されること。
+- `encodeURIComponent`と同等のパーセントエンコードURLから、日本語テキストを含む1要素・1100×760pxの図解が表示されること。
+- URL読み込み結果がPNGで2200×1520pxになること。
+- 不正なハッシュで元の図解が消えず、エラーが表示されること。
+- 「戻す」でURL読み込み前の図解に戻れること。
+- クリップボードが使えない場合の手動コピー欄。
