@@ -215,7 +215,7 @@ def browser():
                     # when the browser automatically dismisses JavaScript confirm dialogs.
                     # Import never needs a blocking prompt; previous data is kept in Undo.
                     auth_page.on('dialog', lambda dlg: dlg.dismiss())
-                    import json, struct
+                    import struct
                     one_box={'schema':'kps-diagram-v1','width':1100,'height':400,'background':'#FAF5EE',
                        'elements':[{'id':'el-1','type':'box','x':100,'y':100,'w':600,'h':120,
                          'text':'テスト確認','fill':'#F1E6D2','stroke':'#B08D5F',
