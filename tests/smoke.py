@@ -75,9 +75,15 @@ def static():
     diagram_html=(ROOT/'diagram'/'index.html').read_text('utf-8')
     assert 'id="authCode"' in diagram_html and 'id="authVerifyForm"' in diagram_html
     assert 'id="authRequestForm"' in diagram_html
+    assert '¥2,980' not in diagram_html and 'licenseDialog' not in diagram_html
+    assert 'PNGを無料保存' in diagram_html
+    assert 'すべて無料で利用できます' in diagram_html
+    assert "PALETTE_KEY='kps-diagram-colors-v1'" in diagram_js
+    assert "if(!licensed){$('licenseDialog')" not in diagram_js
+    assert "setItem(PALETTE_KEY" in diagram_js
     sample = json.loads((ROOT/'diagram'/'example.json').read_text('utf-8'))
     assert sample['schema']=='kps-diagram-v1' and len(sample['elements'])>=3
-    assert 'v=4' in (ROOT/'diagram'/'index.html').read_text('utf-8')
+    assert 'v=5' in (ROOT/'diagram'/'index.html').read_text('utf-8')
     assert "const KEY='kps-thought-v1'" in (ROOT/'assets'/'thinking.js').read_text()
     assert "const KEY='kps-product-v1'" in (ROOT/'assets'/'studio.js').read_text()
     for slug in LESSONS:
@@ -191,16 +197,25 @@ def browser():
                     """)
                     auth_page=auth_ctx.new_page()
                     assert auth_page.goto(base+'/diagram/').status==200
-                    # Free JSON export must not require login or license.
+                    # JSON and PNG downloads require no login and no purchase.
                     with auth_page.expect_download() as d:auth_page.locator('#saveJsonTop').click()
                     assert d.value.suggested_filename.endswith('.json')
+                    with auth_page.expect_download() as png:auth_page.locator('#exportPng').click()
+                    assert png.value.suggested_filename.endswith('.png')
+                    # Saving a color uses localStorage, including after a page reload.
+                    auth_page.locator('.d-element').first.click()
+                    auth_page.locator('#fillColor').fill('#a1b2c3')
+                    auth_page.locator('#savePalette').click()
+                    assert auth_page.evaluate("JSON.parse(localStorage.getItem('kps-diagram-colors-v1')).includes('#a1b2c3')")
+                    auth_page.reload()
+                    assert auth_page.evaluate("JSON.parse(localStorage.getItem('kps-diagram-colors-v1')).includes('#a1b2c3')")
                     auth_page.locator('#accountBtn').click()
                     auth_page.locator('#authEmail').fill('sample-owner@example.com')
                     auth_page.locator('#sendLink').click()
                     auth_page.wait_for_selector('#authVerifyForm:not([hidden])')
                     auth_page.locator('#authCode').fill('123456')
                     auth_page.locator('#verifyCode').click()
-                    auth_page.wait_for_function("document.getElementById('accountBtn').textContent.includes('ライセンス有効')")
+                    auth_page.wait_for_function("document.getElementById('accountBtn').textContent.includes('KPSログイン済み')")
                     assert auth_page.url.endswith('/diagram/')
                     auth_page.locator('#accountBtn').click()
                     auth_page.locator('#signOut').click()
