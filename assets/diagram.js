@@ -1,5 +1,21 @@
 (()=>{'use strict';
-const SCHEMA='kps-diagram-v1',KEY='kps-diagram-draft-v1', W=1100,H=660, MAX=100, COLORS=['#ffffff','#202a38','#dfeaf1','#e5c0a0','#8dbcc4','#f4deaf','#7291b5','#cee1cc'];
+const SCHEMA='kps-diagram-v1',KEY='kps-diagram-draft-v1',PALETTE_KEY='kps-diagram-colors-v1', W=1100,H=660, MAX=100, COLORS=['#ffffff','#202a38','#dfeaf1','#e5c0a0','#8dbcc4','#f4deaf','#7291b5','#cee1cc'];
+// Free local palette. Keep the original draft key/schema and optional account-based
+// cloud palette for existing customers; never require a purchase for local exports.
+function restorePalette(){
+ try{
+  const saved=JSON.parse(localStorage.getItem(PALETTE_KEY)||'null');
+  if(!Array.isArray(saved))return;
+  for(const color of saved.slice(0,64)){
+   if(typeof color==='string'&&/^#[0-9a-fA-F]{6}$/.test(color)&&!COLORS.includes(color))COLORS.push(color);
+  }
+ }catch(e){/* Ignore an invalid palette without touching the saved value. */}
+}
+function persistPalette(){
+ try{localStorage.setItem(PALETTE_KEY,JSON.stringify(COLORS.slice(0,64)));return true}
+ catch(e){return false}
+}
+restorePalette();
 const SUPABASE_URL='https://kknhlihfrkyebebkockh.supabase.co', PUBLISHABLE='sb_publishable_zaCpsdP0HCh3C4vBmCBdeg_qnns3oar',AUTH_RETURN='https://knowledge-product-studio.vercel.app/diagram/';
 const $=id=>document.getElementById(id),stage=$('stage'),space=$('stageSpace'),viewport=$('viewport'),inspector=$('inspector');
 const fonts={sans:'"Noto Sans JP","Yu Gothic",sans-serif',serif:'"Noto Serif JP","Yu Mincho",serif',mono:'ui-monospace,monospace'};
@@ -142,9 +158,25 @@ function drawPng(){
  c.restore();}
  return canvas;
 }
-$('exportPng').addEventListener('click',()=>{if(!licensed){$('licenseDialog').hidden=false;return;}try{drawPng().toBlob(blob=>{if(!blob)return alert('PNG変換に失敗しました');const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='KPS-図解-'+today()+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),20000)},'image/png')}catch(e){alert('画像を書き出せませんでした：'+e.message)}});
+$('exportPng').addEventListener('click',()=>{try{drawPng().toBlob(blob=>{if(!blob){setStatus('PNG変換に失敗しました');return;}const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='KPS-図解-'+today()+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),20000);setStatus('PNGの保存を開始しました。')},'image/png')}catch(e){alert('画像を書き出せませんでした：'+e.message)}});
 function renderPalette(){const box=$('palette');box.replaceChildren();for(const color of COLORS){const b=document.createElement('button');b.type='button';b.title=color;b.style.background=color;b.addEventListener('click',()=>{const e=current();if(!e)return;snapshot();e.fill=color;render();schedule();});box.append(b)}}
-$('savePalette').addEventListener('click',async()=>{if(!licensed||!db||!user){$('licenseDialog').hidden=false;return;}const e=current();if(!e)return;const color=e.fill;if(!COLORS.includes(color))COLORS.push(color);const {error}=await db.from('kps_diagram_palettes').upsert({user_id:user.id,colors:COLORS});if(error)setStatus('色の保存は現在準備中です');else{renderPalette();setStatus('色をアカウントに保存しました')}});
+$('savePalette').addEventListener('click',async()=>{
+ const e=current();
+ if(!e){setStatus('色を保存するには、先に要素を選択してください。');return;}
+ const color=e.fill;
+ if(!COLORS.includes(color))COLORS.push(color);
+ renderPalette();
+ const saved=persistPalette();
+ setStatus(saved?'この端末に色を保存しました。':'端末に保存できませんでした。ブラウザの保存設定を確認してください。');
+ // Keep legacy cloud sync only for accounts that already have an entitlement.
+ // Local color saving is always free and remains functional without login.
+ if(saved&&licensed&&db&&user){
+  try{
+   const {error}=await db.from('kps_diagram_palettes').upsert({user_id:user.id,colors:COLORS});
+   if(!error)setStatus('この端末とアカウントに色を保存しました。');
+  }catch(e){/* Already saved locally: a cloud failure is not a lost palette. */}
+ }
+});
 // KPS uses the existing Supabase identity but a separate browser session.
 // No link-click redirect or CMS-side login is required for the six-digit code flow.
 let otpEmail='',otpCooldownUntil=0,otpTimer=null,authBusy=false;
@@ -220,8 +252,12 @@ async function refreshLicense(){
   if(licensed){
    const p=await db.from('kps_diagram_palettes').select('colors').eq('user_id',id).maybeSingle();
    if(!p.error&&Array.isArray(p.data?.colors)){
-    COLORS.splice(0,COLORS.length,...p.data.colors.filter(hex=>/^#[0-9a-fA-F]{6}$/.test(hex)).slice(0,64));
+    // Merge previously cloud-saved colors with this device's free palette.
+    for(const color of p.data.colors.filter(hex=>/^#[0-9a-fA-F]{6}$/.test(hex)).slice(0,64)){
+     if(!COLORS.includes(color))COLORS.push(color);
+    }
     renderPalette();
+    persistPalette();
    }
   }
  }catch(e){licensed=false;}
@@ -229,9 +265,7 @@ async function refreshLicense(){
  updateAccount();
 }
 function updateAccount(){
- $('accountBtn').textContent=user?(licensed?'ライセンス有効':'KPSログイン済み'):'KPSログイン';
- $('licenseMessage').textContent=user?(licensed?'KPSの利用権限を確認できました。':'ログイン済みです。書き出し購入は現在準備中です。'):'買い切り決済は準備中です。KPSにログインすると既存の利用権限を確認できます。';
- if(licensed)$('licenseDialog').hidden=true;
+ $('accountBtn').textContent=user?'KPSログイン済み':'ログイン（任意）';
  renderAuthDialog();
 }
 $('accountBtn').addEventListener('click',async()=>{
@@ -286,9 +320,9 @@ $('authVerifyForm').addEventListener('submit',async event=>{
   $('authCode').value='';
   await refreshLicense();
   renderAuthDialog();
-  authStatus(licensed?'KPSにログインしました。永久利用権限を確認しました。':'KPSにログインしました。無料の編集機能を利用できます。');
+  authStatus('KPSにログインしました。PNG書き出しと端末への色の保存はログインなしでも利用できます。');
   $('authDialog').hidden=true;
-  setStatus(licensed?'KPSの利用権限を確認しました':'KPSにログインしました');
+  setStatus('KPSにログインしました');
  }catch(e){
   authStatus('認証コードが一致しないか期限切れです。最新の6桁コードを確認してください。');
   $('authCode').select();
@@ -318,9 +352,7 @@ $('signOut').addEventListener('click',async()=>{
  finally{setAuthBusy(false);}
 });
 $('closeAuth').addEventListener('click',()=>$('authDialog').hidden=true);
-$('closeLicense').addEventListener('click',()=>$('licenseDialog').hidden=true);
-$('loginFromDialog').addEventListener('click',()=>{$('licenseDialog').hidden=true;$('accountBtn').click()});
-for(const node of [$('licenseDialog'),$('authDialog')]){
+for(const node of [$('authDialog')]){
  node.addEventListener('pointerdown',e=>{if(e.target===node)node.hidden=true});
 }
 window.addEventListener('pagehide',()=>{clearTimeout(saveTimer);persist()});
