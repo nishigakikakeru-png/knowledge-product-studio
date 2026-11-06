@@ -39,8 +39,8 @@ Static HTML/CSS/JS; Vercel framework Other. No npm dependencies. Do not deploy t
 
 ## Diagram Editor (2026-11-03)
 - Route `/diagram/` is a static local-first visual editor; its draft key is `kps-diagram-draft-v1`, separate from existing user workspace keys. Do not commit user project JSON to GitHub.
-- Checkout, Stripe webhook and lifetime entitlement database migration are not active yet. Display purchase as '準備中' until verified backend authorization and test checkout complete. Never grant paid features using a client-controlled email field or localStorage boolean.
-- The UI can query an authenticated owner role via Supabase; live owner availability requires end-to-end browser login validation. Client-side PNG gating is not strong DRM and cannot secure an active paid service alone.
+- **2026-11-07 policy update**: The diagram editor is **free**, including PNG download, JSON export/import and local saved-color palette. Remove purchase/¥2,980/license-dialog UI; do not reintroduce purchase checks in PNG or palette saving. Keep the local draft key and schema unchanged.
+- Existing Supabase 6-digit OTP stays **optional**, only to preserve users' old account sessions and eligible cloud palettes; never block a free action on authentication, entitlement lookup or network. Local palette key: `kps-diagram-colors-v1`. Only synchronize to existing cloud records for already-entitled accounts, respecting RLS; do not change CMS billing/auth or shared database.
 - KPS only embeds a link to Piggy Mix; no cross-origin access to its user palettes is implemented. External AI integration uses explicit JSON exchange, without automatic API requests.
 
 ## KPS authentication implementation (2026-11-03)
