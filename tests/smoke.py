@@ -115,7 +115,7 @@ def browser():
     try:from playwright.sync_api import sync_playwright, Error as PlaywrightError
     except ImportError:
         print('Playwright unavailable: browser tests skipped');return
-    with socketserver.TCPServer(('127.0.0.1',0),Handler) as server:
+    with socketserver.ThreadingTCPServer(('127.0.0.1',0),Handler) as server:
         t=threading.Thread(target=server.serve_forever,daemon=True);t.start()
         base='http://127.0.0.1:'+str(server.server_address[1])
         try:
