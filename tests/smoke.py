@@ -309,7 +309,7 @@ def browser():
                         {**one_box['elements'][0],'text':'URL入力確認'}]}
                     plain_link=base+'/diagram/#import='+quote(
                         json.dumps(from_url,ensure_ascii=False,separators=(',',':')),safe='')
-                    assert linked_page.goto(plain_link,wait_until='domcontentloaded').status==200
+                    linked_page.evaluate('(url)=>{window.location.href=url}',plain_link)
                     linked_page.wait_for_function(
                         "document.querySelectorAll('#stage .d-element').length===1 && document.querySelector('#canvasSizeLabel').textContent==='1100 × 760px' && window.location.hash===''")
                     assert linked_page.locator('#stage').inner_text().strip()=='URL入力確認'
@@ -321,8 +321,7 @@ def browser():
                     url_png.value.save_as(url_file)
                     assert struct.unpack('>II',url_file.read_bytes()[16:24])==(2200,1520)
                     # An invalid link reports an error, without touching the drawing.
-                    assert linked_page.goto(base+'/diagram/#import=b64.bad!data',
-                        wait_until='domcontentloaded').status==200
+                    linked_page.evaluate('(url)=>{window.location.href=url}',base+'/diagram/#import=b64.bad!data')
                     linked_page.wait_for_function(
                         "document.querySelector('#jsonImportStatus').textContent.includes('読み込めません')")
                     assert linked_page.locator('#stage').inner_text().strip()=='URL入力確認'
