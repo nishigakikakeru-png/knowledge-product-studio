@@ -1,5 +1,5 @@
 (()=>{'use strict';
-const SCHEMA='kps-diagram-v1',KEY='kps-diagram-draft-v1',PALETTE_KEY='kps-diagram-colors-v1', W=1100,H=660, MAX=100, COLORS=['#ffffff','#202a38','#dfeaf1','#e5c0a0','#8dbcc4','#f4deaf','#7291b5','#cee1cc'];
+const SCHEMA='kps-diagram-v1',KEY='kps-diagram-draft-v1',BACKUP_KEY='kps-diagram-previous-before-import-v1',PALETTE_KEY='kps-diagram-colors-v1', W=1100,H=660, MAX=100, COLORS=['#ffffff','#202a38','#dfeaf1','#e5c0a0','#8dbcc4','#f4deaf','#7291b5','#cee1cc'];
 // Free local palette. Keep the original draft key/schema and optional account-based
 // cloud palette for existing customers; never require a purchase for local exports.
 function restorePalette(){
@@ -30,18 +30,59 @@ let scene=defaultScene();
 const number=(x,lo,hi,d)=>Number.isFinite(+x)?Math.min(hi,Math.max(lo,+x)):d;
 const hex=x=>typeof x==='string'&&/^#[0-9a-fA-F]{6}$/.test(x)?x:'#ffffff';
 function normalize(src){
- if(!src||typeof src!=='object'||src.schema!==SCHEMA||!Array.isArray(src.elements)||src.elements.length>MAX)throw Error('KPS図解JSON形式ではありません');
- const els=src.elements.map((v,i)=>{if(!v||typeof v!=='object'||!['box','text','arrow','symbol'].includes(v.type))throw Error('不正なアイテム形式');
- return{id:uid(),type:v.type,x:number(v.x,-300,1300,100),y:number(v.y,-300,900,100),w:number(v.w,30,1050,220),h:number(v.h,24,650,90),text:String(v.text||'').slice(0,2500),fill:hex(v.fill),stroke:hex(v.stroke),color:hex(v.color),size:number(v.size,12,84,28),radius:number(v.radius,0,80,14),angle:number(v.angle,-180,180,0),opacity:number(v.opacity,10,100,100),font:fonts[v.font]?v.font:'sans',align:['left','center','right'].includes(v.align)?v.align:'center',z:i+1};});
- return{schema:SCHEMA,width:W,height:H,background:hex(src.background),elements:els};}
+ if(!src||typeof src!=='object'||Array.isArray(src)||src.schema!==SCHEMA)throw Error('schemaがkps-diagram-v1の図解JSONを使用してください');
+ if(!Array.isArray(src.elements))throw Error('elementsに図形の配列が必要です');
+ if(src.elements.length>MAX)throw Error('図形は最大100個までです');
+ // Old saved files have 1100x660; newer Muse files may specify a different canvas.
+ const w=src.width===undefined?W:Number(src.width),h=src.height===undefined?H:Number(src.height);
+ if(!Number.isInteger(w)||w<320||w>4096||!Number.isInteger(h)||h<200||h>4096)
+  throw Error('図解サイズは幅320〜4096、高さ200〜4096の整数pxで指定してください');
+ const els=src.elements.map((v,i)=>{
+  if(!v||typeof v!=='object'||!['box','text','arrow','symbol'].includes(v.type))
+   throw Error('elements['+i+']のtypeはbox・text・arrow・symbolのいずれかにしてください');
+  return{id:uid(),type:v.type,x:number(v.x,-300,w+200,100),y:number(v.y,-300,h+200,100),w:number(v.w,30,Math.max(1050,w),220),h:number(v.h,24,Math.max(650,h),90),text:String(v.text||'').slice(0,2500),fill:hex(v.fill),stroke:hex(v.stroke),color:hex(v.color),size:number(v.size,12,84,28),radius:number(v.radius,0,80,14),angle:number(v.angle,-180,180,0),opacity:number(v.opacity,10,100,100),font:fonts[v.font]?v.font:'sans',align:['left','center','right'].includes(v.align)?v.align:'center',z:i+1};
+ });
+ return{schema:SCHEMA,width:w,height:h,background:hex(src.background),elements:els};
+}
 function setStatus(v){$('saveStatus').textContent=v}
 function persist(){try{localStorage.setItem(KEY,JSON.stringify({savedAt:Date.now(),scene}));setStatus('この端末に保存済み');}catch(e){setStatus('保存に失敗。JSONで保存してください')}}
 function schedule(){setStatus('保存中…');clearTimeout(saveTimer);saveTimer=setTimeout(persist,350)}
 function snapshot(){history.push(JSON.stringify(scene));if(history.length>35)history.shift();future.length=0;}
-function resetFrom(str){const prev=JSON.stringify(scene);try{scene=normalize(JSON.parse(str));selected=null;history.push(prev);if(history.length>35)history.shift();future=[];render();schedule()}catch(e){alert('読み込みできません：'+e.message)}}
+function importFeedback(message,success=false){
+ const feedback=$('jsonImportStatus');
+ if(feedback){feedback.textContent=message;feedback.dataset.state=success?'success':'error';}
+ setStatus(message);
+}
+function resetFrom(str,source='JSON'){
+ let normalized;
+ try{
+  if(!String(str||'').trim())throw Error('JSONが空です');
+  normalized=normalize(JSON.parse(str));
+ }catch(error){
+  importFeedback(source+'を読み込めません：'+error.message);
+  return false;
+ }
+ const prev=JSON.stringify(scene),previousSelection=selected;
+ // Import overwrites only the current working document. Keep a separate backup
+ // and Undo history, without modifying the legacy draft storage key/schema.
+ try{localStorage.setItem(BACKUP_KEY,prev)}catch(error){/* Undo remains available */ }
+ history.push(prev);if(history.length>35)history.shift();future=[];
+ scene=normalized;selected=null;
+ try{
+  render();fit();persist();
+  $('jsonEditor').value=JSON.stringify(scene,null,2);
+  importFeedback(source+'を反映しました：'+scene.width+' × '+scene.height+'px／'+scene.elements.length+'要素',true);
+  return true;
+ }catch(error){
+  scene=JSON.parse(prev);selected=previousSelection;history.pop();
+  render();
+  importFeedback(source+'の表示に失敗しました：'+error.message);
+  return false;
+ }
+}
 function load(){try{const data=JSON.parse(localStorage.getItem(KEY)||'null');if(data?.scene){scene=normalize(data.scene);if(Date.now()-data.savedAt>7*86400000)setStatus('7日以上前の下書きを復元しました。JSON保存を推奨');}}catch(e){setStatus('下書きの復元に失敗しました。原本は保持しています')}}
-function fit(){const avail=Math.max(280,viewport.clientWidth-40);setScale(Math.min(1.2,avail/W),false)}
-function setScale(v,update=true){scale=number(v,.25,2,1);stage.style.width=W+'px';stage.style.height=H+'px';stage.style.transform='scale('+scale+')';space.style.width=(W*scale)+'px';space.style.height=(H*scale)+'px';if(update){$('zoom').value=Math.round(scale*100)}$('zoomLabel').textContent=Math.round(scale*100)+'%'}
+function fit(){const avail=Math.max(180,viewport.clientWidth-40);setScale(Math.min(1.2,avail/scene.width))}
+function setScale(v,update=true){scale=number(v,.1,2,1);stage.style.width=scene.width+'px';stage.style.height=scene.height+'px';stage.style.transform='scale('+scale+')';space.style.width=(scene.width*scale)+'px';space.style.height=(scene.height*scale)+'px';if(update){$('zoom').value=Math.round(scale*100)}$('zoomLabel').textContent=Math.round(scale*100)+'%'}
 const current=()=>scene.elements.find(e=>e.id===selected);
 function ensureSelect(){const e=current();inspector.classList.toggle('collapsed',!e);$('selectedLabel').textContent=e?{box:'ボックス',text:'文字',arrow:'矢印',symbol:'記号'}[e.type]+'を編集中':'要素を選択してください';return e}
 function select(id,raise=true){selected=id;const e=current();if(e&&raise){e.z=Math.max(0,...scene.elements.map(v=>v.z))+1;normalizeZ();schedule()}render();}
@@ -55,18 +96,18 @@ function drawElement(v){
  if(v.id===selected){const grip=document.createElement('div');grip.className='d-resize';grip.title='サイズ変更';el.append(grip)}
  stage.append(el);
 }
-function render(){stage.style.background=scene.background;stage.replaceChildren();scene.elements.slice().sort((a,b)=>a.z-b.z).forEach(drawElement);const e=ensureSelect();$('bgColor').value=scene.background;if(e){
+function render(){stage.style.background=scene.background;$('canvasSizeLabel').textContent=scene.width+' × '+scene.height+'px';setScale(scale,false);stage.replaceChildren();scene.elements.slice().sort((a,b)=>a.z-b.z).forEach(drawElement);const e=ensureSelect();$('bgColor').value=scene.background;if(e){
  const f={elText:'text',fontSize:'size',radius:'radius',rotation:'angle',opacity:'opacity',elWidth:'w',elHeight:'h',textColor:'color',fillColor:'fill',strokeColor:'stroke',fontFamily:'font',textAlign:'align'};
  for(const [id,key]of Object.entries(f)){if(document.activeElement!==$(id))$(id).value=e[key]}
  $('fontVal').textContent=e.size;$('radiusVal').textContent=e.radius;$('rotateVal').textContent=e.angle+'°';$('alphaVal').textContent=e.opacity+'%';$('widthVal').textContent=Math.round(e.w);$('heightVal').textContent=Math.round(e.h);
  }renderPalette();}
-function add(type){if(scene.elements.length>=MAX){alert('この図解は100アイテムまでです');return;}snapshot();const props={box:{text:'新しいボックス',w:330,h:115,fill:'#eaf1f6'},text:{text:'新しいテキスト',w:300,h:95,fill:'#ffffff'},arrow:{text:'',w:180,h:36,fill:'#ffffff'},symbol:{text:'★',w:100,h:100,fill:'#ffffff'}}[type];const e={id:uid(),type,x:Math.max(10,Math.round(W*.4+Math.random()*35)),y:Math.max(10,Math.round(H*.25+Math.random()*35)),w:props.w,h:props.h,text:props.text,fill:props.fill,stroke:'#718d9e',color:'#1f3548',size:type==='text'?31:26,radius:15,angle:0,opacity:100,font:'sans',align:'center',z:Math.max(0,...scene.elements.map(x=>x.z))+1};scene.elements.push(e);select(e.id);schedule();}
+function add(type){if(scene.elements.length>=MAX){alert('この図解は100アイテムまでです');return;}snapshot();const props={box:{text:'新しいボックス',w:330,h:115,fill:'#eaf1f6'},text:{text:'新しいテキスト',w:300,h:95,fill:'#ffffff'},arrow:{text:'',w:180,h:36,fill:'#ffffff'},symbol:{text:'★',w:100,h:100,fill:'#ffffff'}}[type];const e={id:uid(),type,x:Math.max(10,Math.round(scene.width*.4+Math.random()*35)),y:Math.max(10,Math.round(scene.height*.25+Math.random()*35)),w:props.w,h:props.h,text:props.text,fill:props.fill,stroke:'#718d9e',color:'#1f3548',size:type==='text'?31:26,radius:15,angle:0,opacity:100,font:'sans',align:'center',z:Math.max(0,...scene.elements.map(x=>x.z))+1};scene.elements.push(e);select(e.id);schedule();}
 function remove(){if(!current())return;snapshot();scene.elements=scene.elements.filter(x=>x.id!==selected);selected=null;render();schedule()}
 function duplicate(){const e=current();if(!e)return;if(scene.elements.length>=MAX)return alert('100アイテムまでです');snapshot();const next={...e,id:uid(),x:e.x+24,y:e.y+24,z:Math.max(...scene.elements.map(v=>v.z))+1};scene.elements.push(next);select(next.id);}
 for(const b of document.querySelectorAll('[data-add]'))b.addEventListener('click',()=>add(b.dataset.add));
 $('duplicate').addEventListener('click',duplicate);$('remove').addEventListener('click',remove);
-$('undo').addEventListener('click',()=>{if(!history.length)return;future.push(JSON.stringify(scene));scene=normalize(JSON.parse(history.pop()));selected=null;render();schedule()});
-$('redo').addEventListener('click',()=>{if(!future.length)return;history.push(JSON.stringify(scene));scene=normalize(JSON.parse(future.pop()));selected=null;render();schedule()});
+$('undo').addEventListener('click',()=>{if(!history.length)return;future.push(JSON.stringify(scene));scene=normalize(JSON.parse(history.pop()));selected=null;render();fit();schedule()});
+$('redo').addEventListener('click',()=>{if(!future.length)return;history.push(JSON.stringify(scene));scene=normalize(JSON.parse(future.pop()));selected=null;render();fit();schedule()});
 $('fit').addEventListener('click',fit);
 $('zoom').addEventListener('input',e=>setScale(e.target.value/100));
 $('bgColor').addEventListener('input',e=>{scene.background=e.target.value;stage.style.background=scene.background;schedule()});
@@ -84,7 +125,7 @@ stage.addEventListener('pointerdown',ev=>{
  if(el.dataset.id!==selected)select(el.dataset.id);const e=current();if(!e)return;snapshot();dragMode=ev.target.classList.contains('d-resize')?'resize':'move';
  drag={id:e.id,mode:dragMode,startX:ev.clientX,startY:ev.clientY,x:e.x,y:e.y,w:e.w,h:e.h};stage.setPointerCapture(ev.pointerId);ev.preventDefault();
 });
-stage.addEventListener('pointermove',ev=>{if(!drag)return;const e=current();if(!e||e.id!==drag.id)return;const dx=(ev.clientX-drag.startX)/scale,dy=(ev.clientY-drag.startY)/scale;if(drag.mode==='move'){e.x=Math.round(number(drag.x+dx,-300,W+100,0));e.y=Math.round(number(drag.y+dy,-300,H+100,0));}else{e.w=Math.round(number(drag.w+dx,30,1050,250));e.h=Math.round(number(drag.h+dy,24,650,80));}render();ev.preventDefault()});
+stage.addEventListener('pointermove',ev=>{if(!drag)return;const e=current();if(!e||e.id!==drag.id)return;const dx=(ev.clientX-drag.startX)/scale,dy=(ev.clientY-drag.startY)/scale;if(drag.mode==='move'){e.x=Math.round(number(drag.x+dx,-300,scene.width+100,0));e.y=Math.round(number(drag.y+dy,-300,scene.height+100,0));}else{e.w=Math.round(number(drag.w+dx,30,Math.max(1050,scene.width),250));e.h=Math.round(number(drag.h+dy,24,Math.max(650,scene.height),80));}render();ev.preventDefault()});
 const endDrag=()=>{if(drag){drag=null;schedule()}};
 stage.addEventListener('pointerup',endDrag);stage.addEventListener('pointercancel',endDrag);
 function download(content,name,mime){const b=new Blob([content],{type:mime});const url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
@@ -138,19 +179,23 @@ $('loadSample').addEventListener('click',async()=>{
   if(!response.ok)throw Error('HTTP '+response.status);
   const content=await response.text();
   if(!confirm('現在の図解をサンプルで置き換えますか？ 必要なら先にJSONを保存してください。'))return;
-  resetFrom(content);
-  setStatus('サンプル図解を読み込みました。編集・JSON保存を試せます。');
+  if(resetFrom(content,'サンプル'))setStatus('サンプル図解を読み込みました。編集・JSON保存を試せます。');
  }catch(e){setStatus('サンプルを読み込めませんでした。ファイルを直接保存してJSON読込をお試しください。');}
 });
 
-$('openJson').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;if(file.size>600000)return alert('600KB以下のJSONを使ってください');if(!confirm('現在の図解を新しいファイルに置き換えますか？'))return;resetFrom(await file.text())});
+$('openJson').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];e.target.value='';if(!file)return;
+ if(file.size>600000){importFeedback('JSONファイルは600KB以下にしてください');return;}
+ try{resetFrom(await file.text(),'ファイル '+file.name)}
+ catch(error){importFeedback('ファイルを読めませんでした：'+error.message)}
+});
 $('codeToggle').addEventListener('click',()=>{const p=$('codePanel');p.hidden=!p.hidden;if(!p.hidden){$('jsonEditor').value=JSON.stringify(scene,null,2);p.scrollIntoView({behavior:'smooth',block:'nearest'})}});
 $('refreshJson').addEventListener('click',()=>$('jsonEditor').value=JSON.stringify(scene,null,2));
-$('applyJson').addEventListener('click',()=>{if(!confirm('現在の図解を入力したJSONで置き換えますか？'))return;resetFrom($('jsonEditor').value)});
+$('applyJson').addEventListener('click',()=>{resetFrom($('jsonEditor').value,'貼り付けたJSON')});
 $('copyPrompt').addEventListener('click',async()=>{const prompt='次の文章からnote用の見やすいフローチャートを作成してください。出力は説明文なしのJSONのみ。スキーマは '+SCHEMA+'、width:1100、height:660、background:#ffffff、elements配列（最大30要素）。各要素は type:box|text|arrow|symbol, x,y,w,h,text,fill,stroke,color,size,radius,angle,opacity,font:sans|serif|mono,align:left|center|right,z を必須としてください。要素はキャンバス内に収め、文字が重ならないようにしてください。ユーザーの文章: 【ここに文章を貼る】';try{await navigator.clipboard.writeText(prompt);setStatus('外部AI用指示文をコピーしました')}catch(e){alert(prompt)}});
 function wrapLines(ctx,str,maxw){const lines=[];for(const par of String(str).split('\n')){let line='';for(const ch of [...par]){if(ctx.measureText(line+ch).width>maxw&&line){lines.push(line);line=ch}else line+=ch;}lines.push(line);}return lines;}
 function drawPng(){
- const canvas=document.createElement('canvas'),mul=2;canvas.width=W*mul;canvas.height=H*mul;const c=canvas.getContext('2d');if(!c)throw Error('canvas not available');c.scale(mul,mul);c.fillStyle=scene.background;c.fillRect(0,0,W,H);
+ const canvas=document.createElement('canvas'),mul=2;canvas.width=scene.width*mul;canvas.height=scene.height*mul;const c=canvas.getContext('2d');if(!c)throw Error('canvas not available');c.scale(mul,mul);c.fillStyle=scene.background;c.fillRect(0,0,scene.width,scene.height);
  for(const v of scene.elements.slice().sort((a,b)=>a.z-b.z)){c.save();c.translate(v.x+v.w/2,v.y+v.h/2);c.rotate(v.angle*Math.PI/180);c.globalAlpha=v.opacity/100;
  if(v.type==='arrow'){c.strokeStyle=v.stroke;c.fillStyle=v.stroke;c.lineWidth=Math.max(2,v.size/6);c.lineCap='round';c.beginPath();c.moveTo(-v.w/2+4,0);c.lineTo(v.w/2-15,0);c.stroke();c.beginPath();c.moveTo(v.w/2-15,-9);c.lineTo(v.w/2-1,0);c.lineTo(v.w/2-15,9);c.closePath();c.fill();}
  else{if(v.type==='box'){const r=Math.min(v.radius,v.h/2,v.w/2);c.beginPath();c.roundRect(-v.w/2,-v.h/2,v.w,v.h,r);c.fillStyle=v.fill;c.fill();c.lineWidth=2;c.strokeStyle=v.stroke;c.stroke();}

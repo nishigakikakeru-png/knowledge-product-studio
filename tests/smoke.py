@@ -81,9 +81,14 @@ def static():
     assert "PALETTE_KEY='kps-diagram-colors-v1'" in diagram_js
     assert "if(!licensed){$('licenseDialog')" not in diagram_js
     assert "setItem(PALETTE_KEY" in diagram_js
+    assert "width:w,height:h" in diagram_js, 'import must preserve custom canvas dimensions'
+    assert "if(!confirm('現在の図解を入力したJSONで置き換えますか？'))" not in diagram_js, 'no blocking dialog for JSON paste'
+    assert "if(!confirm('現在の図解を新しいファイルに置き換えますか？'))" not in diagram_js, 'no blocking dialog for file import'
+    assert "scene.width*mul" in diagram_js and "scene.height*mul" in diagram_js, 'PNG uses loaded canvas dimensions'
+    assert 'id="canvasSizeLabel"' in diagram_html and 'id="jsonImportStatus"' in diagram_html, 'visible size and import result'
     sample = json.loads((ROOT/'diagram'/'example.json').read_text('utf-8'))
     assert sample['schema']=='kps-diagram-v1' and len(sample['elements'])>=3
-    assert 'v=5' in (ROOT/'diagram'/'index.html').read_text('utf-8')
+    assert 'v=6' in (ROOT/'diagram'/'index.html').read_text('utf-8')
     assert "const KEY='kps-thought-v1'" in (ROOT/'assets'/'thinking.js').read_text()
     assert "const KEY='kps-product-v1'" in (ROOT/'assets'/'studio.js').read_text()
     for slug in LESSONS:
@@ -206,6 +211,68 @@ def browser():
                     assert d.value.suggested_filename.endswith('.json')
                     with auth_page.expect_download() as png:auth_page.locator('#exportPng').click()
                     assert png.value.suggested_filename.endswith('.png')
+                    # Regression from Muse handoff (2026-11-07): imports must work even
+                    # when the browser automatically dismisses JavaScript confirm dialogs.
+                    # Import never needs a blocking prompt; previous data is kept in Undo.
+                    auth_page.on('dialog', lambda dlg: dlg.dismiss())
+                    import struct
+                    one_box={'schema':'kps-diagram-v1','width':1100,'height':400,'background':'#FAF5EE',
+                       'elements':[{'id':'el-1','type':'box','x':100,'y':100,'w':600,'h':120,
+                         'text':'テスト確認','fill':'#F1E6D2','stroke':'#B08D5F',
+                         'color':'#3B2A1E','size':28,'radius':14,'angle':0,'opacity':100,
+                         'font':'sans','align':'center','z':1}]}
+                    auth_page.locator('#codeToggle').click()
+                    auth_page.locator('#jsonEditor').fill(json.dumps(one_box,ensure_ascii=False))
+                    auth_page.locator('#applyJson').click()
+                    assert auth_page.locator('#stage .d-element').count()==1
+                    assert auth_page.locator('#stage').inner_text().strip()=='テスト確認'
+                    assert auth_page.locator('#canvasSizeLabel').inner_text()=='1100 × 400px'
+                    assert auth_page.locator('#stage').evaluate("(el)=>el.style.height")=='400px'
+                    assert '1要素' in auth_page.locator('#jsonImportStatus').inner_text()
+                    assert json.loads(auth_page.evaluate("localStorage.getItem('kps-diagram-draft-v1')"))['scene']['height']==400
+                    assert '選択肢を増やしたい' in auth_page.evaluate("localStorage.getItem('kps-diagram-previous-before-import-v1')")
+                    with auth_page.expect_download() as exported:
+                        auth_page.locator('#exportPng').click()
+                    png_file=Path('/tmp/kps-import-custom-canvas.png')
+                    exported.value.save_as(png_file)
+                    png_bytes=png_file.read_bytes()
+                    assert png_bytes[:8]==b'\x89PNG\r\n\x1a\n'
+                    assert struct.unpack('>II',png_bytes[16:24])==(2200,800)
+                    # Failed imports must preserve the visible diagram and show why.
+                    auth_page.locator('#jsonEditor').fill('{"schema":"wrong","elements":[]}')
+                    auth_page.locator('#applyJson').click()
+                    assert auth_page.locator('#stage').inner_text().strip()=='テスト確認'
+                    assert '読み込めません' in auth_page.locator('#jsonImportStatus').inner_text()
+                    # Original 1100x660 sample and the custom-size diagram remain undoable.
+                    auth_page.locator('#undo').click()
+                    assert auth_page.locator('#stage .d-element').count()==3
+                    assert auth_page.locator('#canvasSizeLabel').inner_text()=='1100 × 660px'
+                    auth_page.locator('#redo').click()
+                    assert auth_page.locator('#stage').inner_text().strip()=='テスト確認'
+                    assert auth_page.locator('#canvasSizeLabel').inner_text()=='1100 × 400px'
+                    # Simulate the user's 15-element diagram; test actual file input.
+                    many={'schema':'kps-diagram-v1','width':1100,'height':880,'background':'#FAF5EE',
+                          'elements':[{**one_box['elements'][0],'id':f'row-{i}','type':'box',
+                            'text':f'産地一覧 {i+1}','x':25+(i%3)*360,'y':30+(i//3)*160,
+                            'w':325,'h':140} for i in range(15)]}
+                    auth_page.locator('#openJson').set_input_files({
+                       'name':'15-origin-regions.json','mimeType':'application/json',
+                       'buffer':json.dumps(many,ensure_ascii=False).encode('utf-8')})
+                    # The file input handler reads File.text() asynchronously.
+                    # Wait for the import rather than checking the old DOM immediately.
+                    auth_page.wait_for_function("document.querySelectorAll('#stage .d-element').length===15",timeout=12000)
+                    assert auth_page.locator('#stage .d-element').count()==15
+                    assert auth_page.locator('#canvasSizeLabel').inner_text()=='1100 × 880px'
+                    assert '15要素' in auth_page.locator('#saveStatus').inner_text()
+                    auth_page.reload(wait_until='domcontentloaded')
+                    assert auth_page.locator('#stage .d-element').count()==15
+                    assert auth_page.locator('#canvasSizeLabel').inner_text()=='1100 × 880px'
+                    with auth_page.expect_download() as many_png:
+                        auth_page.locator('#exportPng').click()
+                    many_file=Path('/tmp/kps-import-15-elements.png')
+                    many_png.value.save_as(many_file)
+                    assert struct.unpack('>II',many_file.read_bytes()[16:24])==(2200,1760)
+
                     # Saving a color uses localStorage, including after a page reload.
                     auth_page.locator('.d-element').first.click()
                     auth_page.locator('#fillColor').evaluate("(el)=>{el.value='#a1b2c3';el.dispatchEvent(new Event('input',{bubbles:true}))}")
