@@ -258,6 +258,9 @@ def browser():
                     auth_page.locator('#openJson').set_input_files({
                        'name':'15-origin-regions.json','mimeType':'application/json',
                        'buffer':json.dumps(many,ensure_ascii=False).encode('utf-8')})
+                    # The file input handler reads File.text() asynchronously.
+                    # Wait for the import rather than checking the old DOM immediately.
+                    auth_page.wait_for_function("document.querySelectorAll('#stage .d-element').length===15",timeout=12000)
                     assert auth_page.locator('#stage .d-element').count()==15
                     assert auth_page.locator('#canvasSizeLabel').inner_text()=='1100 × 880px'
                     assert '15要素' in auth_page.locator('#saveStatus').inner_text()
