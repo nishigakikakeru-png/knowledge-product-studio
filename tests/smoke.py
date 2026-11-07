@@ -10,7 +10,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 LESSONS=('problem','design','offer','sales','reach','improve')
-PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/diagram/','/guides/','/guides/experience-to-product/','/guides/paid-note-theme/','/guides/note-vs-pdf/','/academy/','/academy/seo/','/academy/cases/','/academy/check/','/about/']
+PAGES=['/','/learn/',*[f'/learn/{x}/' for x in LESSONS],'/studio/','/thinking/','/diagram/','/guides/','/guides/experience-to-product/','/guides/paid-note-theme/','/guides/note-vs-pdf/','/guides/chatgpt-sites/','/academy/','/academy/seo/','/academy/cases/','/academy/check/','/about/']
 ORIGIN='https://knowledge-product-studio.vercel.app'
 class AuditParser(HTMLParser):
     def __init__(self): super().__init__();self.links=[];self.canon=[];self.robots=[];self.h1=0;self.description=[]
@@ -43,7 +43,7 @@ def static():
     conf=json.loads((ROOT/'vercel.json').read_text())
     assert 'noindex' in json.dumps(conf)
     # SEO content intentionally remains noindex until editorial release; entry cluster is distinct.
-    guide_pages=['experience-to-product','paid-note-theme','note-vs-pdf']
+    guide_pages=['experience-to-product','paid-note-theme','note-vs-pdf','chatgpt-sites']
     for slug in guide_pages:
         doc=(ROOT/'guides'/slug/'index.html').read_text('utf-8')
         assert '<h1>' in doc and 'noindex,nofollow' in doc

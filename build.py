@@ -140,7 +140,7 @@ about='''<main class="container page-main prose"><div class="eyebrow">ABOUT</div
 (ROOT/'about'/'index.html').write_text(layout('運営とデータ保存について','経験をカタチにするLabの目的、教材の状態、商品設計ボードの保存・プライバシー方針を案内します。',about,canonical_path='/about/'),encoding='utf-8')
 (ROOT/'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: https://knowledge-product-studio.vercel.app/sitemap.xml\n',encoding='utf-8')
 from xml.sax.saxutils import escape as xml_escape
-paths=['/','/learn/']+[f'/learn/{slug}/' for _,slug,*_ in LESSONS]+['/studio/','/thinking/','/diagram/','/guides/','/guides/experience-to-product/','/guides/paid-note-theme/','/guides/note-vs-pdf/','/academy/','/academy/seo/','/academy/cases/','/academy/check/','/about/']
+paths=['/','/learn/']+[f'/learn/{slug}/' for _,slug,*_ in LESSONS]+['/studio/','/thinking/','/diagram/','/guides/','/guides/experience-to-product/','/guides/paid-note-theme/','/guides/note-vs-pdf/','/guides/chatgpt-sites/','/academy/','/academy/seo/','/academy/cases/','/academy/check/','/about/']
 xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join(f'  <url><loc>{xml_escape(SITE_ORIGIN+path)}</loc></url>\n' for path in paths)+'</urlset>\n'
 (ROOT/'sitemap.xml').write_text(xml,encoding='utf-8')
 (ROOT/'vercel.json').write_text(json.dumps({'cleanUrls':True,'trailingSlash':True,'headers':[{'source':'/(.*)','headers':[{'key':'X-Robots-Tag','value':'noindex, nofollow'},{'key':'X-Content-Type-Options','value':'nosniff'},{'key':'Referrer-Policy','value':'strict-origin-when-cross-origin'}]}]},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
