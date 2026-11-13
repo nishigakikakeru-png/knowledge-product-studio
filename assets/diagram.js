@@ -40,7 +40,7 @@ function normalize(src){
  const els=src.elements.map((v,i)=>{
   if(!v||typeof v!=='object'||!['box','text','arrow','symbol'].includes(v.type))
    throw Error('elements['+i+']のtypeはbox・text・arrow・symbolのいずれかにしてください');
-  return{id:uid(),type:v.type,x:number(v.x,-300,w+200,100),y:number(v.y,-300,h+200,100),w:number(v.w,30,Math.max(1050,w),220),h:number(v.h,24,Math.max(650,h),90),text:String(v.text||'').slice(0,2500),fill:hex(v.fill),stroke:hex(v.stroke),color:hex(v.color),size:number(v.size,12,84,28),radius:number(v.radius,0,80,14),angle:number(v.angle,-180,180,0),opacity:number(v.opacity,10,100,100),font:fonts[v.font]?v.font:'sans',align:['left','center','right'].includes(v.align)?v.align:'center',z:i+1};
+  return{id:uid(),type:v.type,x:number(v.x,-300,w+200,100),y:number(v.y,-300,h+200,100),w:number(v.w,30,Math.max(1050,w),220),h:number(v.h,24,Math.max(650,h),90),text:String(v.text||'').slice(0,2500),fill:hex(v.fill),stroke:hex(v.stroke),color:hex(v.color),size:number(v.size,12,84,28),radius:number(v.radius,0,80,14),angle:number(v.angle,-180,180,0),opacity:number(v.opacity,10,100,100),font:fonts[v.font]?v.font:'sans',align:['left','center','right'].includes(v.align)?v.align:'center',padding:number(v.padding,4,36,16),weight:v.weight==='normal'?'normal':'bold',z:i+1};
  });
  return{schema:SCHEMA,width:w,height:h,background:hex(src.background),elements:els};
 }
@@ -91,12 +91,12 @@ function drawElement(v){
  const el=document.createElement('div');el.className='d-element'+(v.type==='arrow'?' d-arrow':'')+(v.id===selected?' selected':'');el.dataset.id=v.id;el.style.left=v.x+'px';el.style.top=v.y+'px';el.style.width=v.w+'px';el.style.height=v.h+'px';el.style.zIndex=v.z;el.style.transform='rotate('+v.angle+'deg)';el.style.opacity=v.opacity/100;el.style.color=v.color;
  if(v.type==='arrow'){el.style.borderTop='0';el.style.setProperty('--arrow-color',v.stroke);el.style.setProperty('--arrow-width',Math.max(2,Math.min(12,v.size/6))+'px');}else{
  el.style.background=v.type==='box'?v.fill:'transparent';el.style.border=v.type==='box'?'2px solid '+v.stroke:'0';el.style.borderRadius=v.radius+'px';}
- const content=document.createElement('div');content.className='d-contents';content.textContent=v.text;content.style.fontFamily=fonts[v.font];content.style.fontSize=v.size+'px';content.style.fontWeight=v.type==='box'?'700':'500';content.style.textAlign=v.align;content.style.padding=v.type==='box'?'10px 16px':'2px';content.style.alignContent='center';
+ const content=document.createElement('div');content.className='d-contents';content.textContent=v.text;content.style.fontFamily=fonts[v.font];content.style.fontSize=v.size+'px';content.style.fontWeight=v.type==='box'?(v.weight==='normal'?'400':'700'):'500';content.style.textAlign=v.align;content.style.padding=v.type==='box'?'10px '+(v.padding||16)+'px':'2px';content.style.alignContent='center';
  if(v.type!=='arrow')el.append(content);
  if(v.id===selected){const grip=document.createElement('div');grip.className='d-resize';grip.title='サイズ変更';el.append(grip)}
  stage.append(el);
 }
-function render(){stage.style.background=scene.background;$('canvasSizeLabel').textContent=scene.width+' × '+scene.height+'px';setScale(scale,false);stage.replaceChildren();scene.elements.slice().sort((a,b)=>a.z-b.z).forEach(drawElement);const e=ensureSelect();$('bgColor').value=scene.background;if(e){
+function render(){stage.style.background=scene.background;$('canvasSizeLabel').textContent=scene.width+' × '+scene.height+'px';syncCanvasInputs();setScale(scale,false);stage.replaceChildren();scene.elements.slice().sort((a,b)=>a.z-b.z).forEach(drawElement);const e=ensureSelect();$('bgColor').value=scene.background;if(e){
  const f={elText:'text',fontSize:'size',radius:'radius',rotation:'angle',opacity:'opacity',elWidth:'w',elHeight:'h',textColor:'color',fillColor:'fill',strokeColor:'stroke',fontFamily:'font',textAlign:'align'};
  for(const [id,key]of Object.entries(f)){if(document.activeElement!==$(id))$(id).value=e[key]}
  $('fontVal').textContent=e.size;$('radiusVal').textContent=e.radius;$('rotateVal').textContent=e.angle+'°';$('alphaVal').textContent=e.opacity+'%';$('widthVal').textContent=Math.round(e.w);$('heightVal').textContent=Math.round(e.h);
@@ -109,6 +109,78 @@ $('duplicate').addEventListener('click',duplicate);$('remove').addEventListener(
 $('undo').addEventListener('click',()=>{if(!history.length)return;future.push(JSON.stringify(scene));scene=normalize(JSON.parse(history.pop()));selected=null;render();fit();schedule()});
 $('redo').addEventListener('click',()=>{if(!future.length)return;history.push(JSON.stringify(scene));scene=normalize(JSON.parse(future.pop()));selected=null;render();fit();schedule()});
 $('fit').addEventListener('click',fit);
+
+/* Dedicated paste controls keep ordinary text editing and JSON import unchanged. */
+function toggleQuickPanel(panelId,buttonId){
+ const panel=$(panelId),button=$(buttonId);
+ panel.hidden=!panel.hidden;
+ button.setAttribute('aria-expanded',String(!panel.hidden));
+ if(!panel.hidden)panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+$('tableToggle').addEventListener('click',()=>toggleQuickPanel('tablePanel','tableToggle'));
+$('canvasToggle').addEventListener('click',()=>toggleQuickPanel('canvasPanel','canvasToggle'));
+function tableMessage(message,ok){
+ const status=$('tableStatus');status.textContent=message;status.dataset.state=ok?'success':'error';setStatus(message);
+}
+function generateFromTable(raw){
+ try{
+  if(!window.KPSTable)throw Error('表の変換機能を読み込めませんでした。ページを更新してください。');
+  const rows=window.KPSTable.parse(raw);
+  const table=window.KPSTable.layout(rows,{
+   style:$('tableStyle').value,canvas:$('tableCanvasMode').value,
+   headerRow:$('tableHeaderRow').checked,headerCol:$('tableHeaderCol').checked,uid
+  });
+  if(!resetFrom(JSON.stringify(table),'表')){tableMessage('表を反映できませんでした。図解JSONの検証結果をご確認ください。',false);return false;}
+  tableMessage(rows.length+'行 × '+rows[0].length+'列の表を生成しました。セルを選択して編集できます。',true);
+  return true;
+ }catch(error){tableMessage('表を生成できません：'+error.message,false);return false;}
+}
+$('createTable').addEventListener('click',()=>generateFromTable($('tablePaste').value));
+$('tablePaste').addEventListener('paste',event=>{
+ const raw=event.clipboardData?.getData('text/plain');
+ if(typeof raw!=='string'||!raw)return;
+ event.preventDefault();
+ $('tablePaste').value=raw;
+ generateFromTable(raw);
+});
+function syncCanvasInputs(){
+ if(document.activeElement!==$('canvasWidth'))$('canvasWidth').value=scene.width;
+ if(document.activeElement!==$('canvasHeight'))$('canvasHeight').value=scene.height;
+ const preset=scene.width===1100&&scene.height===660?'note':scene.width===1100&&scene.height===1500?'portrait':scene.width===1080&&scene.height===1080?'square':'custom';
+ if(document.activeElement!==$('canvasPreset'))$('canvasPreset').value=preset;
+}
+function canvasMessage(message,ok){
+ const status=$('canvasStatus');status.textContent=message;status.dataset.state=ok?'success':'error';setStatus(message);
+}
+$('canvasPreset').addEventListener('change',()=>{
+ const preset=$('canvasPreset').value;
+ const dims={note:[1100,660],portrait:[1100,1500],square:[1080,1080]}[preset];
+ if(dims){$('canvasWidth').value=dims[0];$('canvasHeight').value=dims[1];}
+});
+for(const id of ['canvasWidth','canvasHeight'])$(id).addEventListener('input',()=>$('canvasPreset').value='custom');
+$('applyCanvas').addEventListener('click',()=>{
+ try{
+  const preset=$('canvasPreset').value;
+  let w=Number($('canvasWidth').value),h=Number($('canvasHeight').value);
+  let offsetX=0,offsetY=0;
+  if(preset==='fit'&&scene.elements.length){
+   const minX=Math.min(...scene.elements.map(v=>v.x)),minY=Math.min(...scene.elements.map(v=>v.y));
+   const maxX=Math.max(...scene.elements.map(v=>v.x+v.w)),maxY=Math.max(...scene.elements.map(v=>v.y+v.h));
+   offsetX=40-minX;offsetY=40-minY;
+   w=Math.max(320,Math.ceil(maxX-minX+80));h=Math.max(200,Math.ceil(maxY-minY+80));
+  }else if(preset==='fit'){w=scene.width;h=scene.height;}
+  if(!Number.isInteger(w)||w<320||w>4096||!Number.isInteger(h)||h<200||h>4096)
+   throw Error('幅320〜4096px・高さ200〜4096pxの整数を指定してください。');
+  if(scene.width===w&&scene.height===h&&offsetX===0&&offsetY===0){canvasMessage('現在のサイズと同じです。',true);return;}
+  snapshot();
+  scene.width=w;scene.height=h;
+  if(offsetX||offsetY)for(const e of scene.elements){e.x+=offsetX;e.y+=offsetY;}
+  render();fit();schedule();
+  const outside=scene.elements.some(e=>e.x<0||e.y<0||e.x+e.w>w||e.y+e.h>h);
+  canvasMessage(w+' × '+h+'pxに変更しました。'+(outside?'キャンバス外にはみ出した要素があります。サイズを広げるか移動してください。':'既存の要素は保持しています。'),true);
+ }catch(error){canvasMessage('サイズを変更できません：'+error.message,false);}
+});
+
 $('zoom').addEventListener('input',e=>setScale(e.target.value/100));
 $('bgColor').addEventListener('input',e=>{scene.background=e.target.value;stage.style.background=scene.background;schedule()});
 $('bgColor').addEventListener('pointerdown',snapshot);
@@ -266,7 +338,7 @@ function drawPng(){
  for(const v of scene.elements.slice().sort((a,b)=>a.z-b.z)){c.save();c.translate(v.x+v.w/2,v.y+v.h/2);c.rotate(v.angle*Math.PI/180);c.globalAlpha=v.opacity/100;
  if(v.type==='arrow'){c.strokeStyle=v.stroke;c.fillStyle=v.stroke;c.lineWidth=Math.max(2,v.size/6);c.lineCap='round';c.beginPath();c.moveTo(-v.w/2+4,0);c.lineTo(v.w/2-15,0);c.stroke();c.beginPath();c.moveTo(v.w/2-15,-9);c.lineTo(v.w/2-1,0);c.lineTo(v.w/2-15,9);c.closePath();c.fill();}
  else{if(v.type==='box'){const r=Math.min(v.radius,v.h/2,v.w/2);c.beginPath();c.roundRect(-v.w/2,-v.h/2,v.w,v.h,r);c.fillStyle=v.fill;c.fill();c.lineWidth=2;c.strokeStyle=v.stroke;c.stroke();}
- c.fillStyle=v.color;c.font=(v.type==='box'?'700 ':'500 ')+v.size+'px '+fonts[v.font];c.textAlign=v.align;c.textBaseline='middle';const lines=wrapLines(c,v.text,v.w-(v.type==='box'?32:4));const max=Math.max(1,Math.floor((v.h-12)/(v.size*1.35))),shown=lines.slice(0,max),lh=v.size*1.35;const x=v.align==='left'?-v.w/2+15:v.align==='right'?v.w/2-15:0;shown.forEach((line,i)=>c.fillText(line,x,(i-(shown.length-1)/2)*lh));}
+ c.fillStyle=v.color;c.font=(v.type==='box'?(v.weight==='normal'?'400 ':'700 '):'500 ')+v.size+'px '+fonts[v.font];c.textAlign=v.align;c.textBaseline='middle';const lines=wrapLines(c,v.text,v.w-(v.type==='box'?(v.padding||16)*2:4));const max=Math.max(1,Math.floor((v.h-12)/(v.size*1.35))),shown=lines.slice(0,max),lh=v.size*1.35;const x=v.align==='left'?-v.w/2+(v.padding||16):v.align==='right'?v.w/2-(v.padding||16):0;shown.forEach((line,i)=>c.fillText(line,x,(i-(shown.length-1)/2)*lh));}
  c.restore();}
  return canvas;
 }
