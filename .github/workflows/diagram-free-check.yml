@@ -4,6 +4,8 @@ on:
     paths:
       - "diagram/**"
       - "assets/diagram.js"
+      - "assets/diagram-table.js"
+      - "tests/table-import.cjs"
       - "assets/diagram.css"
       - "tests/smoke.py"
       - "build.py"
@@ -37,6 +39,10 @@ jobs:
           python-version: '3.12'
       - name: Check JavaScript syntax
         run: node --check assets/diagram.js
+      - name: Check table parsing and layout
+        run: |
+          node --check assets/diagram-table.js
+          node tests/table-import.cjs
       - name: Install browser tests
         run: |
           python -m pip install --disable-pip-version-check playwright==1.55.0
