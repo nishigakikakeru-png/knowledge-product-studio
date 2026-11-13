@@ -62,6 +62,7 @@ def static():
     diagram_js = (ROOT/'assets'/'diagram.js').read_text('utf-8')
     assert "const URL=" not in diagram_js, 'URL shadowing breaks URL.createObjectURL download'
     assert 'URL.createObjectURL' in diagram_js
+    assert 'generateFromTable' in diagram_js and 'syncCanvasInputs' in diagram_js
     assert "const SUPABASE_URL=" in diagram_js
     assert 'saveJsonFile' in diagram_js
     assert 'AUTH_RETURN' in diagram_js
@@ -94,7 +95,9 @@ def static():
     assert "MAX_IMPORT_URL_CHARS=32000" in diagram_js, 'URL length cap'
     sample = json.loads((ROOT/'diagram'/'example.json').read_text('utf-8'))
     assert sample['schema']=='kps-diagram-v1' and len(sample['elements'])>=3
-    assert 'v=7' in (ROOT/'diagram'/'index.html').read_text('utf-8')
+    assert 'diagram.js?v=8' in (ROOT/'diagram'/'index.html').read_text('utf-8')
+    assert 'diagram-table.js?v=1' in (ROOT/'diagram'/'index.html').read_text('utf-8')
+    assert 'id="tablePaste"' in diagram_html and 'id="canvasPreset"' in diagram_html
     assert "const KEY='kps-thought-v1'" in (ROOT/'assets'/'thinking.js').read_text()
     assert "const KEY='kps-product-v1'" in (ROOT/'assets'/'studio.js').read_text()
     for slug in LESSONS:
@@ -278,6 +281,73 @@ def browser():
                     many_file=Path('/tmp/kps-import-15-elements.png')
                     many_png.value.save_as(many_file)
                     assert struct.unpack('>II',many_file.read_bytes()[16:24])==(2200,1760)
+
+                    # 2026-11-14: TSV paste -> editable diagram-v1 boxes,
+                    # with soft-style presets, note-width sizing and reversible import.
+                    auth_page.locator('#tableToggle').click()
+                    assert auth_page.locator('#tablePanel').is_visible()
+                    auth_page.locator('#tablePaste').fill('項目\t内容\t備考\n産地\tエチオピア\t花の香り')
+                    auth_page.locator('#createTable').click()
+                    assert auth_page.locator('#stage .d-element').count()==6
+                    assert '2行 × 3列' in auth_page.locator('#tableStatus').inner_text()
+                    table_data=json.loads(auth_page.evaluate(
+                        "localStorage.getItem('kps-diagram-draft-v1')"))['scene']
+                    assert table_data['schema']=='kps-diagram-v1'
+                    assert table_data['elements'][0]['fill']=='#e5d5c5'
+                    assert table_data['elements'][3]['fill']=='#f3e7da'
+                    assert table_data['elements'][4]['weight']=='normal'
+                    assert table_data['elements'][4]['padding']==16
+                    assert table_data['width']>=320 and table_data['height']>=200
+                    assert all(e['x']+e['w']<=table_data['width']
+                               and e['y']+e['h']<=table_data['height']
+                               for e in table_data['elements'])
+                    # Rejected oversized tables must preserve current editable content.
+                    too_large='\n'.join(['\t'.join(['x']*10)]*11)
+                    auth_page.locator('#tablePaste').fill(too_large)
+                    auth_page.locator('#createTable').click()
+                    assert '最大100セル' in auth_page.locator('#tableStatus').inner_text()
+                    assert auth_page.locator('#stage .d-element').count()==6
+                    auth_page.locator('#undo').click()
+                    assert auth_page.locator('#stage .d-element').count()==15
+                    assert auth_page.locator('#canvasSizeLabel').inner_text()=='1100 × 880px'
+                    # Real paste event, with Markdown clipboard text instead of TSV.
+                    auth_page.locator('#tableStyle').select_option('diagram')
+                    auth_page.locator('#tableCanvasMode').select_option('note')
+                    auth_page.locator('#tableHeaderCol').uncheck()
+                    markdown='| 項目 | 内容 |\n| --- | --- |\n| A | 説明 |\n| B | テスト |'
+                    auth_page.locator('#tablePaste').evaluate("""(el,raw)=>{
+                       const clipboardData=new DataTransfer();
+                       clipboardData.setData('text/plain',raw);
+                       el.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData}));
+                    }""",markdown)
+                    assert auth_page.locator('#stage .d-element').count()==6
+                    assert auth_page.locator('#canvasSizeLabel').inner_text().startswith('1100 × ')
+                    assert '6要素' in auth_page.evaluate("localStorage.getItem('kps-diagram-draft-v1')") or auth_page.locator('#stage .d-element').count()==6
+                    table_data=json.loads(auth_page.evaluate("localStorage.getItem('kps-diagram-draft-v1')"))['scene']
+                    assert table_data['elements'][0]['radius']==22
+                    assert table_data['elements'][2]['weight']=='normal'
+                    with auth_page.expect_download() as table_png:
+                        auth_page.locator('#exportPng').click()
+                    table_file=Path('/tmp/kps-table-paste.png')
+                    table_png.value.save_as(table_file)
+                    assert struct.unpack('>II',table_file.read_bytes()[16:24])==(2200,table_data['height']*2)
+                    auth_page.locator('#undo').click()
+                    assert auth_page.locator('#stage .d-element').count()==15
+                    # Custom canvas dimensions do not delete elements and are undoable.
+                    auth_page.locator('#canvasToggle').click()
+                    auth_page.locator('#canvasWidth').fill('960')
+                    auth_page.locator('#canvasHeight').fill('720')
+                    auth_page.locator('#applyCanvas').click()
+                    assert auth_page.locator('#canvasSizeLabel').inner_text()=='960 × 720px'
+                    assert auth_page.locator('#stage .d-element').count()==15
+                    with auth_page.expect_download() as sized_png:
+                        auth_page.locator('#exportPng').click()
+                    size_file=Path('/tmp/kps-custom-size.png')
+                    sized_png.value.save_as(size_file)
+                    assert struct.unpack('>II',size_file.read_bytes()[16:24])==(1920,1440)
+                    auth_page.locator('#undo').click()
+                    assert auth_page.locator('#canvasSizeLabel').inner_text()=='1100 × 880px'
+                    assert auth_page.locator('#stage .d-element').count()==15
 
                     # Muse handoff (2026-11-07): AI opens a URL; it must import
                     # without typing in a textarea or relying on synthetic input events.
