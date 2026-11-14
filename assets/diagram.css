@@ -34,3 +34,22 @@
 /* Link-based diagram import fallback when clipboard access is unavailable. */
 .diagram-import-url{width:100%;box-sizing:border-box;overflow-wrap:anywhere;font-size:12px;line-height:1.5;}
 .diagram-import-url[hidden]{display:none!important}
+
+
+/* Lightweight, accessible table-paste and canvas presets; no overlay or modal. */
+.diagram-quick-panel{margin:0 0 13px;padding:18px 20px;background:#fff;border:1px solid #dce4e8;border-radius:14px;min-width:0}
+.diagram-quick-panel[hidden]{display:none!important}
+.diagram-quick-panel h2{font-size:16px;margin:0 0 6px;color:#25475a}
+.diagram-quick-panel>p{margin:4px 0 12px;font-size:12px;line-height:1.65;color:#566d78}
+.diagram-quick-panel>label{display:block;font-size:12px;font-weight:700;color:#385565}
+.diagram-quick-panel textarea{display:block;box-sizing:border-box;width:100%;min-height:90px;margin:7px 0 12px;padding:12px;border:1px solid #cbd8de;border-radius:9px;background:#fcfdfd;font:14px/1.6 ui-monospace,"Noto Sans JP",sans-serif;resize:vertical;tab-size:3}
+.diagram-panel-controls{display:flex;align-items:end;flex-wrap:wrap;gap:10px 15px}
+.diagram-panel-controls>label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:#45616f}
+.diagram-panel-controls select,.diagram-panel-controls input[type=number]{max-width:100%;min-height:36px;padding:7px 9px;border:1px solid #cbd8de;border-radius:8px;background:#fff;font-size:13px;color:#193b4b}
+.diagram-panel-controls input[type=number]{width:110px;box-sizing:border-box}
+.diagram-panel-controls .diagram-check{flex-direction:row;align-items:center;gap:5px;padding-bottom:8px;white-space:nowrap}
+.diagram-panel-controls .diagram-check input{width:17px;height:17px;accent-color:#2973a7}
+.diagram-quick-panel .diagram-inline-status{font-size:12px;line-height:1.65;margin:12px 0 0;padding:8px 10px;background:#f7fafb;border-radius:8px;overflow-wrap:anywhere}
+.diagram-inline-status[data-state=error]{background:#fff1ed;color:#903729}
+.diagram-inline-status[data-state=success]{background:#edf8f2;color:#195b3c}
+@media(max-width:580px){.diagram-quick-panel{padding:13px 11px}.diagram-panel-controls{gap:11px}.diagram-panel-controls>label{min-width:0}.diagram-panel-controls select{width:100%;max-width:100%}}
